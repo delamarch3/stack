@@ -1,12 +1,12 @@
 use std::cmp::Ordering;
-use std::io::{self, Cursor, Read};
+use std::io::{Cursor, Read};
 
 use crate::stack::Stack;
 
 #[repr(i64)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Bytecode {
-    Val = 0,
+    Push = 0,
     Add,
     Sub,
     Mul,
@@ -31,35 +31,32 @@ impl<'a> Interpreter<'a> {
         Self { stack, program }
     }
 
-    fn next(&mut self) -> io::Result<Option<i64>> {
+    fn next(&mut self) -> Option<i64> {
         let mut buf = [0u8; 8];
-        let read = self.program.read(&mut buf)?;
-        if read < 8 {
-            assert_eq!(read, 0);
-            return Ok(None);
+        let n = self.program.read(&mut buf).ok()?;
+        if n < 8 {
+            assert_eq!(n, 0);
+            return None;
         }
 
         let val = i64::from_be_bytes(buf);
-        Ok(Some(val))
+        Some(val)
     }
 
-    fn next_op(&mut self) -> io::Result<Option<Bytecode>> {
-        let Some(op) = self.next()? else {
-            return Ok(None);
-        };
-
+    fn next_op(&mut self) -> Option<Bytecode> {
+        let op = self.next()?;
         assert!(op <= Bytecode::Ret as i64);
         let op = unsafe { std::mem::transmute::<_, Bytecode>(op) };
-        Ok(Some(op))
+        Some(op)
     }
 
-    pub fn run_program<R>(&mut self) -> io::Result<()> {
+    pub fn run_program<R>(&mut self) -> Option<()> {
         loop {
-            let Some(op) = self.next_op()? else { break };
+            let op = self.next_op()?;
 
             match op {
-                Bytecode::Val => {
-                    let val = self.next()?.expect("invalid program");
+                Bytecode::Push => {
+                    let val = self.next()?;
                     self.stack.push(val);
                 }
                 Bytecode::Add => self.stack.add(),
@@ -68,29 +65,29 @@ impl<'a> Interpreter<'a> {
                 Bytecode::Div => self.stack.div(),
                 Bytecode::Cmp => {
                     let a = self.stack.pop();
-                    let b = self.next()?.expect("invalid program");
+                    let b = self.next()?;
                     let cmp = a.cmp(&b) as i64;
                     self.stack.push(a);
                     self.stack.push(cmp);
                 }
                 Bytecode::Jmp => {
-                    let pos = self.next()?.expect("invalid program");
+                    let pos = self.next()?;
                     self.program.set_position(pos.try_into().unwrap());
                 }
                 Bytecode::JmpLt => {
-                    let pos = self.next()?.expect("invalid program");
+                    let pos = self.next()?;
                     if self.stack.pop() == Ordering::Less as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
                 Bytecode::JmpEq => {
-                    let pos = self.next()?.expect("invalid program");
+                    let pos = self.next()?;
                     if self.stack.pop() == Ordering::Equal as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
                 Bytecode::JmpGt => {
-                    let pos = self.next()?.expect("invalid program");
+                    let pos = self.next()?;
                     if self.stack.pop() == Ordering::Greater as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
@@ -99,6 +96,6 @@ impl<'a> Interpreter<'a> {
             }
         }
 
-        Ok(())
+        Some(())
     }
 }
