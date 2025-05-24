@@ -9,12 +9,12 @@ pub enum Token {
     Eof,
 }
 
-pub struct TokeniserIter<'t, 's> {
-    tokeniser: &'t mut Tokeniser<'s>,
+pub struct TokeniserIter<'s> {
+    tokeniser: Tokeniser<'s>,
     eof: bool,
 }
 
-impl<'t, 's> Iterator for TokeniserIter<'t, 's> {
+impl<'s> Iterator for TokeniserIter<'s> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -28,6 +28,19 @@ impl<'t, 's> Iterator for TokeniserIter<'t, 's> {
     }
 }
 
+impl<'a> IntoIterator for Tokeniser<'a> {
+    type Item = Token;
+
+    type IntoIter = TokeniserIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        TokeniserIter {
+            tokeniser: self,
+            eof: false,
+        }
+    }
+}
+
 pub struct Tokeniser<'s> {
     src: Peekable<Chars<'s>>,
 }
@@ -36,13 +49,6 @@ impl<'s> Tokeniser<'s> {
     pub fn new(src: &'s str) -> Self {
         let src = src.chars().peekable();
         Self { src }
-    }
-
-    pub fn iter_mut<'t>(&'t mut self) -> TokeniserIter<'t, 's> {
-        TokeniserIter {
-            tokeniser: self,
-            eof: false,
-        }
     }
 
     fn take_while(&mut self, f: impl Fn(char) -> bool) -> String {
@@ -170,8 +176,8 @@ ret",
                 ],
             ),
         ] {
-            let mut tokeniser = Tokeniser::new(src);
-            let have: Vec<Token> = tokeniser.iter_mut().collect();
+            let tokeniser = Tokeniser::new(src);
+            let have: Vec<Token> = tokeniser.into_iter().collect();
             assert_eq!(want, have);
         }
     }
