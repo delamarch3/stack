@@ -1,12 +1,33 @@
-use std::{iter::Peekable, str::Chars};
+use std::collections::HashMap;
+use std::iter::Peekable;
+use std::str::Chars;
 
-#[derive(Debug, PartialEq)]
+use crate::interpreter::Bytecode;
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    Symbol(String),
+    Word(String),
+    Keyword(Keyword),
     Value(String),
     Dot,
     Colon,
     Eof,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Keyword {
+    Entry,
+}
+
+impl<'a> TryFrom<&'a str> for Keyword {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        match value {
+            "entry" => Ok(Keyword::Entry),
+            _ => Err("not a keyword")?,
+        }
+    }
 }
 
 pub struct TokeniserIter<'s> {
@@ -118,7 +139,11 @@ impl<'s> Tokeniser<'s> {
                 }
                 c if c.is_alphabetic() => {
                     let word = self.take_while(|c| c.is_alphabetic());
-                    Token::Symbol(word)
+                    if let Ok(keyword) = word.as_str().try_into() {
+                        Token::Keyword(keyword)
+                    } else {
+                        Token::Word(word)
+                    }
                 }
                 c => panic!("unexpected char: {c}"),
             },
@@ -129,7 +154,7 @@ impl<'s> Tokeniser<'s> {
 
 #[cfg(test)]
 mod test {
-    use super::{Token, Tokeniser};
+    use super::{Keyword, Token, Tokeniser};
 
     #[test]
     fn test_tokeniser() {
@@ -137,7 +162,7 @@ mod test {
             ("", vec![Token::Eof]),
             (
                 "\n\n; test \tcomment\n\n\nword; test comment",
-                vec![Token::Symbol("word".into()), Token::Eof],
+                vec![Token::Word("word".into()), Token::Eof],
             ),
             (
                 "
@@ -154,31 +179,172 @@ jmp.lt lbl
 ret",
                 vec![
                     Token::Dot,
-                    Token::Symbol("entry".into()),
-                    Token::Symbol("main".into()),
-                    Token::Symbol("main".into()),
+                    Token::Keyword(Keyword::Entry),
+                    Token::Word("main".into()),
+                    Token::Word("main".into()),
                     Token::Colon,
-                    Token::Symbol("push".into()),
+                    Token::Word("push".into()),
                     Token::Value("1".into()),
-                    Token::Symbol("lbl".into()),
+                    Token::Word("lbl".into()),
                     Token::Colon,
-                    Token::Symbol("push".into()),
+                    Token::Word("push".into()),
                     Token::Value("1".into()),
-                    Token::Symbol("add".into()),
-                    Token::Symbol("cmp".into()),
+                    Token::Word("add".into()),
+                    Token::Word("cmp".into()),
                     Token::Value("10".into()),
-                    Token::Symbol("jmp".into()),
+                    Token::Word("jmp".into()),
                     Token::Dot,
-                    Token::Symbol("lt".into()),
-                    Token::Symbol("lbl".into()),
-                    Token::Symbol("ret".into()),
+                    Token::Word("lt".into()),
+                    Token::Word("lbl".into()),
+                    Token::Word("ret".into()),
                     Token::Eof,
                 ],
             ),
         ] {
-            let tokeniser = Tokeniser::new(src);
-            let have: Vec<Token> = tokeniser.into_iter().collect();
+            let have: Vec<Token> = Tokeniser::new(src).into_iter().collect();
             assert_eq!(want, have);
         }
+    }
+}
+
+pub struct Assembler {
+    tokens: Vec<Token>,
+    position: usize,
+    program: Vec<i64>,
+    labels: HashMap<String, usize>,
+    unresolved: HashMap<usize, String>,
+}
+
+impl Assembler {
+    pub fn new(src: &str) -> Self {
+        let tokens = Tokeniser::new(src).into_iter().collect();
+        let position = 0;
+        let program = Vec::new();
+        let labels = HashMap::new();
+        let unresolved = HashMap::new();
+
+        Self {
+            tokens,
+            position,
+            program,
+            labels,
+            unresolved,
+        }
+    }
+
+    pub fn assemble(mut self) -> Result<Vec<i64>, Box<dyn std::error::Error>> {
+        self.parse_entry()?;
+
+        while let Some(token) = self.next_token() {
+            match token {
+                Token::Word(word) => {
+                    if self.check_tokens(&[Token::Colon]) {
+                        self.labels.insert(word.to_string(), self.program.len());
+                        continue;
+                    }
+
+                    self.assemble_instruction(word.as_str())?;
+                }
+                token => Err(format!("unexpected token: {token:?}"))?,
+            }
+        }
+
+        for (i, label) in self.unresolved {
+            let Some(position) = self.labels.get(&label) else {
+                Err(format!("could not resolve label: {label}"))?
+            };
+            self.program[i] = *position as i64;
+        }
+
+        Ok(self.program)
+    }
+
+    fn parse_entry(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.parse_tokens(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
+
+        let entry = match self.next_token() {
+            Some(Token::Word(entry)) => entry,
+            Some(token) => Err(format!("unexpected token: {token:?}"))?,
+            _ => unreachable!(),
+        };
+
+        self.program.push(0);
+        self.unresolved.insert(0, entry);
+
+        Ok(())
+    }
+
+    fn assemble_instruction(&mut self, word: &str) -> Result<(), Box<dyn std::error::Error>> {
+        match word {
+            "push" => self.assemble_operator(Bytecode::Push, 1)?,
+            "add" => self.assemble_operator(Bytecode::Add, 0)?,
+            "sub" => self.assemble_operator(Bytecode::Sub, 0)?,
+            "mul" => self.assemble_operator(Bytecode::Mul, 0)?,
+            "div" => self.assemble_operator(Bytecode::Div, 0)?,
+            "cmp" => self.assemble_operator(Bytecode::Cmp, 1)?,
+            "jmp" => {
+                self.assemble_operator(Bytecode::Jmp, 0)?;
+                match self.next_token() {
+                    Some(Token::Word(label)) => {
+                        self.unresolved.insert(self.program.len(), label);
+                        self.program.push(0);
+                    }
+                    Some(Token::Value(value)) => {
+                        let value = value.parse()?;
+                        self.program.push(value);
+                    }
+                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
+                    _ => unreachable!(),
+                }
+            }
+            "ret" => self.program.push(Bytecode::Ret as i64),
+            word => Err(format!("unknown instruction: {word}"))?,
+        }
+
+        Ok(())
+    }
+
+    fn assemble_operator(
+        &mut self,
+        code: Bytecode,
+        n: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.program.push(code as i64);
+
+        for _ in 0..n {
+            let Some(Token::Value(value)) = self.next_token() else {
+                Err("expected value for {code:?}")?
+            };
+            let value = value.parse()?;
+            self.program.push(value);
+        }
+
+        Ok(())
+    }
+
+    fn check_tokens(&mut self, tokens: &[Token]) -> bool {
+        let position = self.position;
+        for token in tokens {
+            if Some(token) == self.next_token().as_ref() {
+                continue;
+            } else {
+                self.position = position;
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn parse_tokens(&mut self, tokens: &[Token]) -> Result<(), Box<dyn std::error::Error>> {
+        self.check_tokens(tokens)
+            .then_some(())
+            .ok_or(format!("expected tokens {tokens:?}").into())
+    }
+
+    fn next_token(&mut self) -> Option<Token> {
+        let token = self.tokens.get(self.position).cloned()?;
+        self.position += 1;
+        Some(token)
     }
 }
