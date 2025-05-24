@@ -152,61 +152,6 @@ impl<'s> Tokeniser<'s> {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::{Keyword, Token, Tokeniser};
-
-    #[test]
-    fn test_tokeniser() {
-        for (src, want) in [
-            ("", vec![Token::Eof]),
-            (
-                "\n\n; test \tcomment\n\n\nword; test comment",
-                vec![Token::Word("word".into()), Token::Eof],
-            ),
-            (
-                "
-; My Program
-.entry main
-
-main:
-push 1
-lbl:
-push 1
-add
-cmp 10
-jmp.lt lbl
-ret",
-                vec![
-                    Token::Dot,
-                    Token::Keyword(Keyword::Entry),
-                    Token::Word("main".into()),
-                    Token::Word("main".into()),
-                    Token::Colon,
-                    Token::Word("push".into()),
-                    Token::Value("1".into()),
-                    Token::Word("lbl".into()),
-                    Token::Colon,
-                    Token::Word("push".into()),
-                    Token::Value("1".into()),
-                    Token::Word("add".into()),
-                    Token::Word("cmp".into()),
-                    Token::Value("10".into()),
-                    Token::Word("jmp".into()),
-                    Token::Dot,
-                    Token::Word("lt".into()),
-                    Token::Word("lbl".into()),
-                    Token::Word("ret".into()),
-                    Token::Eof,
-                ],
-            ),
-        ] {
-            let have: Vec<Token> = Tokeniser::new(src).into_iter().collect();
-            assert_eq!(want, have);
-        }
-    }
-}
-
 pub struct Assembler {
     tokens: Vec<Token>,
     position: usize,
@@ -238,13 +183,14 @@ impl Assembler {
         while let Some(token) = self.next_token() {
             match token {
                 Token::Word(word) => {
-                    if self.check_tokens(&[Token::Colon]) {
+                    if self.check(&[Token::Colon]) {
                         self.labels.insert(word.to_string(), self.program.len());
                         continue;
                     }
 
                     self.assemble_instruction(word.as_str())?;
                 }
+                Token::Eof => break,
                 token => Err(format!("unexpected token: {token:?}"))?,
             }
         }
@@ -260,7 +206,7 @@ impl Assembler {
     }
 
     fn parse_entry(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.parse_tokens(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
+        self.parse(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
 
         let entry = match self.next_token() {
             Some(Token::Word(entry)) => entry,
@@ -283,7 +229,22 @@ impl Assembler {
             "div" => self.assemble_operator(Bytecode::Div, 0)?,
             "cmp" => self.assemble_operator(Bytecode::Cmp, 1)?,
             "jmp" => {
-                self.assemble_operator(Bytecode::Jmp, 0)?;
+                let code = if self.check(&[Token::Dot]) {
+                    match self.next_token() {
+                        Some(Token::Word(word)) => match word.as_str() {
+                            "lt" => Bytecode::JmpLt,
+                            "gt" => Bytecode::JmpGt,
+                            "eq" => Bytecode::JmpEq,
+                            have => Err(format!("unexpected one of lt, gt, eq. have: {have}"))?,
+                        },
+                        Some(token) => Err(format!("unexpected token: {token:?}"))?,
+                        None => unreachable!(),
+                    }
+                } else {
+                    Bytecode::Jmp
+                };
+
+                self.assemble_operator(code, 0)?;
                 match self.next_token() {
                     Some(Token::Word(label)) => {
                         self.unresolved.insert(self.program.len(), label);
@@ -322,7 +283,7 @@ impl Assembler {
         Ok(())
     }
 
-    fn check_tokens(&mut self, tokens: &[Token]) -> bool {
+    fn check(&mut self, tokens: &[Token]) -> bool {
         let position = self.position;
         for token in tokens {
             if Some(token) == self.next_token().as_ref() {
@@ -336,8 +297,8 @@ impl Assembler {
         true
     }
 
-    fn parse_tokens(&mut self, tokens: &[Token]) -> Result<(), Box<dyn std::error::Error>> {
-        self.check_tokens(tokens)
+    fn parse(&mut self, tokens: &[Token]) -> Result<(), Box<dyn std::error::Error>> {
+        self.check(tokens)
             .then_some(())
             .ok_or(format!("expected tokens {tokens:?}").into())
     }
@@ -346,5 +307,93 @@ impl Assembler {
         let token = self.tokens.get(self.position).cloned()?;
         self.position += 1;
         Some(token)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::interpreter::Bytecode;
+
+    use super::{Assembler, Keyword, Token, Tokeniser};
+
+    #[test]
+    fn test_tokeniser() {
+        for (src, want) in [
+            ("", vec![Token::Eof]),
+            (
+                "\n\n; test \tcomment\n\n\nword; test comment",
+                vec![Token::Word("word".into()), Token::Eof],
+            ),
+            (
+                "
+; My Program
+.entry main
+
+main:
+push 1
+loop:
+push 1
+add
+cmp 10
+jmp.lt loop
+ret",
+                vec![
+                    Token::Dot,
+                    Token::Keyword(Keyword::Entry),
+                    Token::Word("main".into()),
+                    Token::Word("main".into()),
+                    Token::Colon,
+                    Token::Word("push".into()),
+                    Token::Value("1".into()),
+                    Token::Word("loop".into()),
+                    Token::Colon,
+                    Token::Word("push".into()),
+                    Token::Value("1".into()),
+                    Token::Word("add".into()),
+                    Token::Word("cmp".into()),
+                    Token::Value("10".into()),
+                    Token::Word("jmp".into()),
+                    Token::Dot,
+                    Token::Word("lt".into()),
+                    Token::Word("loop".into()),
+                    Token::Word("ret".into()),
+                    Token::Eof,
+                ],
+            ),
+        ] {
+            let have: Vec<Token> = Tokeniser::new(src).into_iter().collect();
+            assert_eq!(want, have);
+        }
+    }
+
+    #[test]
+    fn test_assemble() -> Result<(), Box<dyn std::error::Error>> {
+        let src = "
+; My Program
+.entry main
+
+push 1
+main:
+push 1
+loop:
+push 1
+add
+cmp 10
+jmp.lt loop
+ret";
+        let have = Assembler::new(&src).assemble()?;
+        #[rustfmt::skip]
+        let want: Vec<i64> = vec![
+            3,
+            Bytecode::Push as i64, 1,
+            Bytecode::Push as i64, 1, // main:
+            Bytecode::Push as i64, 1, // loop:
+            Bytecode::Add as i64,
+            Bytecode::Cmp as i64, 10,
+            Bytecode::JmpLt as i64, 5,
+            Bytecode::Ret as i64
+        ];
+        assert_eq!(want, have);
+        Ok(())
     }
 }
