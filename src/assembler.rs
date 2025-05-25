@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::iter::Peekable;
+use std::mem;
 use std::str::Chars;
 
 use crate::interpreter::Bytecode;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -22,7 +25,7 @@ pub enum Keyword {
 impl<'a> TryFrom<&'a str> for Keyword {
     type Error = Box<dyn std::error::Error>;
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a str) -> Result<Self> {
         match value {
             "entry" => Ok(Keyword::Entry),
             _ => Err("not a keyword")?,
@@ -155,7 +158,7 @@ impl<'s> Tokeniser<'s> {
 pub struct Assembler {
     tokens: Vec<Token>,
     position: usize,
-    program: Vec<i64>,
+    program: Vec<u8>,
     labels: HashMap<String, usize>,
     unresolved: HashMap<usize, String>,
 }
@@ -177,7 +180,7 @@ impl Assembler {
         }
     }
 
-    pub fn assemble(mut self) -> Result<Vec<i64>, Box<dyn std::error::Error>> {
+    pub fn assemble(mut self) -> Result<Vec<u8>> {
         self.parse_entry()?;
 
         while let Some(token) = self.next_token() {
@@ -199,14 +202,14 @@ impl Assembler {
             let Some(position) = self.labels.get(&label) else {
                 Err(format!("could not resolve label: {label}"))?
             };
-            self.program[i] = *position as i64;
+            self.program[i..i + mem::size_of::<i64>()].copy_from_slice(&position.to_be_bytes());
         }
 
         Ok(self.program)
     }
 
-    fn parse_entry(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.parse(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
+    fn parse_entry(&mut self) -> Result<()> {
+        self.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
 
         let entry = match self.next_token() {
             Some(Token::Word(entry)) => entry,
@@ -214,13 +217,13 @@ impl Assembler {
             _ => unreachable!(),
         };
 
-        self.program.push(0);
-        self.unresolved.insert(0, entry);
+        self.unresolved.insert(self.program.len(), entry);
+        self.program.extend(0i64.to_be_bytes());
 
         Ok(())
     }
 
-    fn assemble_instruction(&mut self, word: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
             "push" => self.assemble_operator(Bytecode::Push, 1)?,
             "add" => self.assemble_operator(Bytecode::Add, 0)?,
@@ -248,36 +251,32 @@ impl Assembler {
                 match self.next_token() {
                     Some(Token::Word(label)) => {
                         self.unresolved.insert(self.program.len(), label);
-                        self.program.push(0);
+                        self.program.extend(0i64.to_be_bytes());
                     }
                     Some(Token::Value(value)) => {
-                        let value = value.parse()?;
-                        self.program.push(value);
+                        let value = value.parse::<i64>()?;
+                        self.program.extend(value.to_be_bytes());
                     }
                     Some(token) => Err(format!("unexpected token: {token:?}"))?,
                     _ => unreachable!(),
                 }
             }
-            "ret" => self.program.push(Bytecode::Ret as i64),
+            "ret" => self.program.extend((Bytecode::Ret as i64).to_be_bytes()),
             word => Err(format!("unknown instruction: {word}"))?,
         }
 
         Ok(())
     }
 
-    fn assemble_operator(
-        &mut self,
-        code: Bytecode,
-        n: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        self.program.push(code as i64);
+    fn assemble_operator(&mut self, code: Bytecode, n: usize) -> Result<()> {
+        self.program.extend((code as i64).to_be_bytes());
 
         for _ in 0..n {
             let Some(Token::Value(value)) = self.next_token() else {
                 Err("expected value for {code:?}")?
             };
-            let value = value.parse()?;
-            self.program.push(value);
+            let value = value.parse::<i64>()?;
+            self.program.extend(value.to_be_bytes());
         }
 
         Ok(())
@@ -297,10 +296,10 @@ impl Assembler {
         true
     }
 
-    fn parse(&mut self, tokens: &[Token]) -> Result<(), Box<dyn std::error::Error>> {
+    fn expect(&mut self, tokens: &[Token]) -> Result<()> {
         self.check(tokens)
             .then_some(())
-            .ok_or(format!("expected tokens {tokens:?}").into())
+            .ok_or(format!("unexpected token {:?}", self.tokens[self.position]).into())
     }
 
     fn next_token(&mut self) -> Option<Token> {
@@ -314,7 +313,7 @@ impl Assembler {
 mod test {
     use crate::interpreter::Bytecode;
 
-    use super::{Assembler, Keyword, Token, Tokeniser};
+    use super::{Assembler, Keyword, Result, Token, Tokeniser};
 
     #[test]
     fn test_tokeniser() {
@@ -367,7 +366,7 @@ ret",
     }
 
     #[test]
-    fn test_assemble() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_assemble() -> Result<()> {
         let src = "
 ; My Program
 .entry main
@@ -383,15 +382,15 @@ jmp.lt loop
 ret";
         let have = Assembler::new(&src).assemble()?;
         #[rustfmt::skip]
-        let want: Vec<i64> = vec![
-            3,
-            Bytecode::Push as i64, 1,
-            Bytecode::Push as i64, 1, // main:
-            Bytecode::Push as i64, 1, // loop:
-            Bytecode::Add as i64,
-            Bytecode::Cmp as i64, 10,
-            Bytecode::JmpLt as i64, 5,
-            Bytecode::Ret as i64
+        let want: Vec<u8> = vec![
+            0, 0, 0, 0, 0, 0, 0, 24,
+            0, 0, 0, 0, 0, 0, 0, Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1,
+            0, 0, 0, 0, 0, 0, 0, Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // main:
+            0, 0, 0, 0, 0, 0, 0, Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // loop:
+            0, 0, 0, 0, 0, 0, 0, Bytecode::Add as u8,
+            0, 0, 0, 0, 0, 0, 0, Bytecode::Cmp as u8,   0, 0, 0, 0, 0, 0, 0, 10,
+            0, 0, 0, 0, 0, 0, 0, Bytecode::JmpLt as u8, 0, 0, 0, 0, 0, 0, 0, 40, // jmp loop
+            0, 0, 0, 0, 0, 0, 0, Bytecode::Ret as u8
         ];
         assert_eq!(want, have);
         Ok(())

@@ -3,6 +3,29 @@ pub struct Stack {
     ptr: usize,
 }
 
+impl std::fmt::Display for Stack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let until = if self.ptr < 64 - 8 {
+            self.ptr + 8
+        } else {
+            self.ptr
+        };
+
+        let width = 8;
+        let mut sep = "";
+        write!(f, "[")?;
+        for n in &self.stack[..until] {
+            write!(f, "{sep}")?;
+            write!(f, "{n:width$}")?;
+            sep = ",";
+        }
+        write!(f, "]\n")?;
+
+        let cursor = self.ptr + (self.ptr * width);
+        write!(f, "{:cursor$}^", "")
+    }
+}
+
 impl Stack {
     pub fn new() -> Self {
         let stack = [0; 64];

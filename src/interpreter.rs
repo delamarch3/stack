@@ -50,7 +50,10 @@ impl<'a> Interpreter<'a> {
         Some(op)
     }
 
-    pub fn run_program<R>(&mut self) -> Option<()> {
+    pub fn run(mut self) -> Option<Stack> {
+        let start = self.next()?;
+        self.program.set_position(start as u64);
+
         loop {
             let op = self.next_op()?;
 
@@ -96,6 +99,6 @@ impl<'a> Interpreter<'a> {
             }
         }
 
-        Some(())
+        Some(self.stack)
     }
 }
