@@ -16,6 +16,7 @@ pub enum Bytecode {
     JmpLt,
     JmpEq,
     JmpGt,
+    JmpNe,
 
     Ret,
 }
@@ -100,6 +101,12 @@ impl<'a> Interpreter<'a> {
                 Bytecode::JmpGt => {
                     let pos = self.next_value()?;
                     if self.stack.pop() == Ordering::Greater as i64 {
+                        self.program.set_position(pos.try_into().unwrap());
+                    }
+                }
+                Bytecode::JmpNe => {
+                    let pos = self.next_value()?;
+                    if self.stack.pop() != Ordering::Equal as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
