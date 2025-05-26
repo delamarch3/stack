@@ -226,6 +226,7 @@ impl Assembler {
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
             "push" => self.assemble_operator(Bytecode::Push, 1)?,
+            "pop" => self.assemble_operator(Bytecode::Pop, 0)?,
             "add" => self.assemble_operator(Bytecode::Add, 0)?,
             "sub" => self.assemble_operator(Bytecode::Sub, 0)?,
             "mul" => self.assemble_operator(Bytecode::Mul, 0)?,
@@ -262,6 +263,7 @@ impl Assembler {
                     _ => unreachable!(),
                 }
             }
+            "fail" => self.assemble_operator(Bytecode::Fail, 0)?,
             "ret" => self.assemble_operator(Bytecode::Ret, 0)?,
             word => Err(format!("unknown instruction: {word}"))?,
         }

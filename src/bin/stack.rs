@@ -21,10 +21,10 @@ fn main() -> Result<()> {
     file.read_to_end(&mut src)?;
 
     let stack = Stack::new();
-    let interpreter = Interpreter::new(stack, &src);
-    let stack = interpreter.run().unwrap();
+    let mut interpreter = Interpreter::new(stack, &src);
+    interpreter.run().unwrap();
 
-    eprintln!("{stack}");
+    eprintln!("{}", interpreter.stack());
 
     Ok(())
 }

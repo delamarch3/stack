@@ -3,10 +3,13 @@ use std::io::{Cursor, Read};
 
 use crate::stack::Stack;
 
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Bytecode {
     Push = 0,
+    Pop,
     Add,
     Sub,
     Mul,
@@ -18,6 +21,7 @@ pub enum Bytecode {
     JmpGt,
     JmpNe,
 
+    Fail,
     Ret,
 }
 
@@ -32,34 +36,38 @@ impl<'a> Interpreter<'a> {
         Self { stack, program }
     }
 
-    fn next<const N: usize>(&mut self) -> Option<[u8; N]> {
-        let mut buf = [0u8; N];
-        let n = self.program.read(&mut buf).ok()?;
-        if n < N {
-            assert_eq!(n, 0);
-            return None;
-        }
-
-        Some(buf)
+    pub fn stack(&self) -> &Stack {
+        &self.stack
     }
 
-    fn next_value(&mut self) -> Option<i64> {
+    fn next<const N: usize>(&mut self) -> Result<[u8; N]> {
+        let mut buf = [0u8; N];
+        let n = self.program.read(&mut buf)?;
+        if n < N {
+            assert_eq!(n, 0);
+            Err(format!("read less than expected bytes: {n}"))?;
+        }
+
+        Ok(buf)
+    }
+
+    fn next_value(&mut self) -> Result<i64> {
         const N: usize = size_of::<i64>();
         let buf = self.next::<N>()?;
         let val = i64::from_be_bytes(buf);
-        Some(val)
+        Ok(val)
     }
 
-    fn next_op(&mut self) -> Option<Bytecode> {
+    fn next_op(&mut self) -> Result<Bytecode> {
         const N: usize = size_of::<u8>();
         let buf = self.next::<N>()?;
         let op = u8::from_be_bytes(buf);
         assert!(op <= Bytecode::Ret as u8);
         let op = unsafe { std::mem::transmute::<_, Bytecode>(op) };
-        Some(op)
+        Ok(op)
     }
 
-    pub fn run(mut self) -> Option<Stack> {
+    pub fn run(&mut self) -> Result<()> {
         let start = self.next_value()?;
         self.program.set_position(start.try_into().unwrap());
 
@@ -70,6 +78,9 @@ impl<'a> Interpreter<'a> {
                 Bytecode::Push => {
                     let val = self.next_value()?;
                     self.stack.push(val);
+                }
+                Bytecode::Pop => {
+                    self.stack.pop();
                 }
                 Bytecode::Add => self.stack.add(),
                 Bytecode::Sub => self.stack.sub(),
@@ -110,10 +121,11 @@ impl<'a> Interpreter<'a> {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
+                Bytecode::Fail => Err("fail")?,
                 Bytecode::Ret => break,
             }
         }
 
-        Some(self.stack)
+        Ok(())
     }
 }
