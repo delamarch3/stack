@@ -261,7 +261,7 @@ impl Assembler {
                     _ => unreachable!(),
                 }
             }
-            "ret" => self.program.extend((Bytecode::Ret as i64).to_be_bytes()),
+            "ret" => self.assemble_operator(Bytecode::Ret, 0)?,
             word => Err(format!("unknown instruction: {word}"))?,
         }
 
@@ -269,7 +269,7 @@ impl Assembler {
     }
 
     fn assemble_operator(&mut self, code: Bytecode, n: usize) -> Result<()> {
-        self.program.extend((code as i64).to_be_bytes());
+        self.program.extend((code as u8).to_be_bytes());
 
         for _ in 0..n {
             let Some(Token::Value(value)) = self.next_token() else {
@@ -383,14 +383,14 @@ ret";
         let have = Assembler::new(&src).assemble()?;
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
-            0, 0, 0, 0, 0, 0, 0, 24,
-            0, 0, 0, 0, 0, 0, 0, Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1,
-            0, 0, 0, 0, 0, 0, 0, Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // main:
-            0, 0, 0, 0, 0, 0, 0, Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // loop:
-            0, 0, 0, 0, 0, 0, 0, Bytecode::Add as u8,
-            0, 0, 0, 0, 0, 0, 0, Bytecode::Cmp as u8,   0, 0, 0, 0, 0, 0, 0, 10,
-            0, 0, 0, 0, 0, 0, 0, Bytecode::JmpLt as u8, 0, 0, 0, 0, 0, 0, 0, 40, // jmp loop
-            0, 0, 0, 0, 0, 0, 0, Bytecode::Ret as u8
+            0, 0, 0, 0, 0, 0, 0, 17,
+            Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1,
+            Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // main:
+            Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // loop:
+            Bytecode::Add as u8,
+            Bytecode::Cmp as u8,   0, 0, 0, 0, 0, 0, 0, 10,
+            Bytecode::JmpLt as u8, 0, 0, 0, 0, 0, 0, 0, 26, // jmp loop
+            Bytecode::Ret as u8
         ];
         assert_eq!(want, have);
         Ok(())

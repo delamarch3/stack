@@ -3,7 +3,7 @@ use std::io::{Cursor, Read};
 
 use crate::stack::Stack;
 
-#[repr(i64)]
+#[repr(u8)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Bytecode {
     Push = 0,
@@ -31,35 +31,43 @@ impl<'a> Interpreter<'a> {
         Self { stack, program }
     }
 
-    fn next(&mut self) -> Option<i64> {
-        let mut buf = [0u8; 8];
+    fn next<const N: usize>(&mut self) -> Option<[u8; N]> {
+        let mut buf = [0u8; N];
         let n = self.program.read(&mut buf).ok()?;
-        if n < 8 {
+        if n < N {
             assert_eq!(n, 0);
             return None;
         }
 
+        Some(buf)
+    }
+
+    fn next_value(&mut self) -> Option<i64> {
+        const N: usize = size_of::<i64>();
+        let buf = self.next::<N>()?;
         let val = i64::from_be_bytes(buf);
         Some(val)
     }
 
     fn next_op(&mut self) -> Option<Bytecode> {
-        let op = self.next()?;
-        assert!(op <= Bytecode::Ret as i64);
+        const N: usize = size_of::<u8>();
+        let buf = self.next::<N>()?;
+        let op = u8::from_be_bytes(buf);
+        assert!(op <= Bytecode::Ret as u8);
         let op = unsafe { std::mem::transmute::<_, Bytecode>(op) };
         Some(op)
     }
 
     pub fn run(mut self) -> Option<Stack> {
-        let start = self.next()?;
-        self.program.set_position(start as u64);
+        let start = self.next_value()?;
+        self.program.set_position(start.try_into().unwrap());
 
         loop {
             let op = self.next_op()?;
 
             match op {
                 Bytecode::Push => {
-                    let val = self.next()?;
+                    let val = self.next_value()?;
                     self.stack.push(val);
                 }
                 Bytecode::Add => self.stack.add(),
@@ -68,29 +76,29 @@ impl<'a> Interpreter<'a> {
                 Bytecode::Div => self.stack.div(),
                 Bytecode::Cmp => {
                     let a = self.stack.pop();
-                    let b = self.next()?;
+                    let b = self.next_value()?;
                     let cmp = a.cmp(&b) as i64;
                     self.stack.push(a);
                     self.stack.push(cmp);
                 }
                 Bytecode::Jmp => {
-                    let pos = self.next()?;
+                    let pos = self.next_value()?;
                     self.program.set_position(pos.try_into().unwrap());
                 }
                 Bytecode::JmpLt => {
-                    let pos = self.next()?;
+                    let pos = self.next_value()?;
                     if self.stack.pop() == Ordering::Less as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
                 Bytecode::JmpEq => {
-                    let pos = self.next()?;
+                    let pos = self.next_value()?;
                     if self.stack.pop() == Ordering::Equal as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
                 Bytecode::JmpGt => {
-                    let pos = self.next()?;
+                    let pos = self.next_value()?;
                     if self.stack.pop() == Ordering::Greater as i64 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
