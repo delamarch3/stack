@@ -121,7 +121,7 @@ impl<'a> Interpreter<'a> {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
-                Bytecode::Fail => Err("fail")?,
+                Bytecode::Fail => Err("FAILED")?,
                 Bytecode::Ret => break,
             }
         }

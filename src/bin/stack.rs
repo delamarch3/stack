@@ -22,7 +22,10 @@ fn main() -> Result<()> {
 
     let stack = Stack::new();
     let mut interpreter = Interpreter::new(stack, &src);
-    interpreter.run().unwrap();
+
+    if let Err(err) = interpreter.run() {
+        eprintln!("{err}");
+    };
 
     eprintln!("{}", interpreter.stack());
 
