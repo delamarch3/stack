@@ -1,15 +1,15 @@
-; My Program
 .entry main
 
-push 1
 main:
-push 1
+    ; Push 5, 4, 3, 2, 1 on to the stack
+    push 5
 loop:
-push 1
-add
-cmp 10
-jmp.lt loop
-push 1
-push 30
-add
-ret
+    dup
+    push 1
+    sub
+    dup
+    cmp 1
+    jmp.eq done
+    jmp loop
+done:
+    ret

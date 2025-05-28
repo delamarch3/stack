@@ -5,18 +5,20 @@ main:
     push 2
     push 1
 
+    dup
     cmp 1
     jmp.ne fail
     pop
+    dup
     cmp 2
     jmp.ne fail
     pop
+    dup
     cmp 3
     jmp.ne fail
+    pop
+    ret
 
-    jmp success
 
 fail:
     fail
-success:
-    ret

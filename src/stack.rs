@@ -51,7 +51,7 @@ impl Stack {
 
     pub fn sub(&mut self) {
         let (a, b) = (self.pop(), self.pop());
-        let value = a - b;
+        let value = b - a;
         self.push(value);
     }
 
@@ -63,8 +63,27 @@ impl Stack {
 
     pub fn div(&mut self) {
         let (a, b) = (self.pop(), self.pop());
-        let value = a / b;
+        let value = b / a;
         self.push(value);
+    }
+
+    pub fn swap(&mut self) {
+        let a = self.stack[self.ptr - 1];
+        let b = self.stack[self.ptr - 2];
+        self.stack[self.ptr - 2] = a;
+        self.stack[self.ptr - 1] = b;
+    }
+
+    pub fn dup(&mut self) {
+        self.push(self.stack[self.ptr - 1]);
+    }
+
+    pub fn over(&mut self) {
+        self.push(self.stack[self.ptr - 2]);
+    }
+
+    pub fn rot(&mut self) {
+        self.push(self.stack[self.ptr - 3]);
     }
 }
 

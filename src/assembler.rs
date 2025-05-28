@@ -263,6 +263,10 @@ impl Assembler {
                     _ => unreachable!(),
                 }
             }
+            "swap" => self.assemble_operator(Bytecode::Swap, 0)?,
+            "dup" => self.assemble_operator(Bytecode::Dup, 0)?,
+            "over" => self.assemble_operator(Bytecode::Over, 0)?,
+            "rot" => self.assemble_operator(Bytecode::Rot, 0)?,
             "fail" => self.assemble_operator(Bytecode::Fail, 0)?,
             "ret" => self.assemble_operator(Bytecode::Ret, 0)?,
             word => Err(format!("unknown instruction: {word}"))?,

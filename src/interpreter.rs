@@ -20,6 +20,10 @@ pub enum Bytecode {
     JmpEq,
     JmpGt,
     JmpNe,
+    Swap,
+    Dup,
+    Over,
+    Rot,
 
     Fail,
     Ret,
@@ -90,7 +94,6 @@ impl<'a> Interpreter<'a> {
                     let a = self.stack.pop();
                     let b = self.next_value()?;
                     let cmp = a.cmp(&b) as i64;
-                    self.stack.push(a);
                     self.stack.push(cmp);
                 }
                 Bytecode::Jmp => {
@@ -121,6 +124,10 @@ impl<'a> Interpreter<'a> {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }
+                Bytecode::Swap => self.stack.swap(),
+                Bytecode::Dup => self.stack.dup(),
+                Bytecode::Over => self.stack.over(),
+                Bytecode::Rot => self.stack.rot(),
                 Bytecode::Fail => Err("FAILED")?,
                 Bytecode::Ret => break,
             }
