@@ -91,10 +91,8 @@ impl<'a> Interpreter<'a> {
                 Bytecode::Mul => self.stack.mul(),
                 Bytecode::Div => self.stack.div(),
                 Bytecode::Cmp => {
-                    let a = self.stack.pop();
-                    let b = self.next_value()?;
-                    let cmp = a.cmp(&b) as i64;
-                    self.stack.push(cmp);
+                    let lhs = self.next_value()?;
+                    self.stack.cmp(lhs);
                 }
                 Bytecode::Jmp => {
                     let pos = self.next_value()?;

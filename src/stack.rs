@@ -67,6 +67,11 @@ impl Stack {
         self.push(value);
     }
 
+    pub fn cmp(&mut self, lhs: i64) {
+        let rhs = self.pop();
+        self.push(rhs.cmp(&lhs) as i64);
+    }
+
     pub fn swap(&mut self) {
         let a = self.stack[self.ptr - 1];
         let b = self.stack[self.ptr - 2];
