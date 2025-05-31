@@ -1,5 +1,5 @@
 pub struct Stack {
-    stack: [i64; 64],
+    stack: [i32; 64],
     ptr: usize,
 }
 
@@ -33,12 +33,12 @@ impl Stack {
         Self { stack, ptr }
     }
 
-    pub fn push(&mut self, value: i64) {
+    pub fn push(&mut self, value: i32) {
         self.stack[self.ptr] = value;
         self.ptr += 1;
     }
 
-    pub fn pop(&mut self) -> i64 {
+    pub fn pop(&mut self) -> i32 {
         self.ptr -= 1;
         self.stack[self.ptr]
     }
@@ -67,9 +67,9 @@ impl Stack {
         self.push(value);
     }
 
-    pub fn cmp(&mut self, lhs: i64) {
+    pub fn cmp(&mut self, lhs: i32) {
         let rhs = self.pop();
-        self.push(rhs.cmp(&lhs) as i64);
+        self.push(rhs.cmp(&lhs) as i32);
     }
 
     pub fn swap(&mut self) {

@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::io::{Cursor, Read};
 use std::mem;
 
+use crate::number::Number;
 use crate::stack::Stack;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -39,6 +40,14 @@ pub struct Interpreter<'a> {
     locals: [u8; LOCALS_SIZE],
 }
 
+macro_rules! slot {
+    ($ty:ty, $i:expr) => {{
+        let from = $i * mem::size_of::<$ty>();
+        let to = from + mem::size_of::<$ty>();
+        from..to
+    }};
+}
+
 impl<'a> Interpreter<'a> {
     pub fn new(stack: Stack, program: &'a [u8]) -> Self {
         let program = Cursor::new(program);
@@ -65,31 +74,39 @@ impl<'a> Interpreter<'a> {
         Ok(buf)
     }
 
-    fn next_i64(&mut self) -> Result<i64> {
-        const N: usize = size_of::<i64>();
+    fn next_i32(&mut self) -> Result<i32> {
+        const N: usize = size_of::<i32>();
         let buf = self.next::<N>()?;
-        let val = i64::from_be_bytes(buf);
+        let val = i32::from_le_bytes(buf);
         Ok(val)
     }
 
     fn next_usize(&mut self) -> Result<usize> {
         const N: usize = size_of::<usize>();
         let buf = self.next::<N>()?;
-        let val = usize::from_be_bytes(buf);
+        let val = usize::from_le_bytes(buf);
         Ok(val)
     }
 
     fn next_op(&mut self) -> Result<Bytecode> {
         const N: usize = size_of::<u8>();
         let buf = self.next::<N>()?;
-        let op = u8::from_be_bytes(buf);
+        let op = u8::from_le_bytes(buf);
         assert!(op <= Bytecode::Ret as u8);
         let op = unsafe { std::mem::transmute::<_, Bytecode>(op) };
         Ok(op)
     }
 
+    fn read_local<T: Number>(&self, i: usize) -> T {
+        T::from_le_bytes(&self.locals[slot!(T, i)])
+    }
+
+    fn write_local<T: Number>(&mut self, i: usize, value: T) {
+        self.locals[slot!(T, i)].copy_from_slice(value.to_le_bytes().as_ref());
+    }
+
     pub fn run(&mut self) -> Result<()> {
-        let start = self.next_i64()?;
+        let start = self.next_i32()?;
         self.program.set_position(start.try_into().unwrap());
 
         loop {
@@ -97,7 +114,7 @@ impl<'a> Interpreter<'a> {
 
             match op {
                 Bytecode::Push => {
-                    let val = self.next_i64()?;
+                    let val = self.next_i32()?;
                     self.stack.push(val);
                 }
                 Bytecode::Pop => {
@@ -105,52 +122,47 @@ impl<'a> Interpreter<'a> {
                 }
                 Bytecode::Load => {
                     let i = self.next_usize()?;
-                    let from = i * mem::size_of::<i64>();
-                    let to = from + mem::size_of::<i64>();
-                    let val = i64::from_le_bytes(self.locals[from..to].try_into().unwrap());
+                    let val = self.read_local::<i32>(i);
                     self.stack.push(val);
                 }
                 Bytecode::Store => {
                     let a = self.stack.pop();
                     let i = self.next_usize()?;
-                    let from = i * mem::size_of::<i64>();
-                    let to = from + mem::size_of::<i64>();
-                    let slot = &mut self.locals[from..to];
-                    slot.copy_from_slice(&a.to_le_bytes());
+                    self.write_local::<i32>(i, a);
                 }
                 Bytecode::Add => self.stack.add(),
                 Bytecode::Sub => self.stack.sub(),
                 Bytecode::Mul => self.stack.mul(),
                 Bytecode::Div => self.stack.div(),
                 Bytecode::Cmp => {
-                    let lhs = self.next_i64()?;
+                    let lhs = self.next_i32()?;
                     self.stack.cmp(lhs);
                 }
                 Bytecode::Jmp => {
-                    let pos = self.next_i64()?;
+                    let pos = self.next_usize()?;
                     self.program.set_position(pos.try_into().unwrap());
                 }
-                Bytecode::JmpLt => {
-                    let pos = self.next_i64()?;
-                    if self.stack.pop() == Ordering::Less as i64 {
-                        self.program.set_position(pos.try_into().unwrap());
-                    }
-                }
                 Bytecode::JmpEq => {
-                    let pos = self.next_i64()?;
-                    if self.stack.pop() == Ordering::Equal as i64 {
-                        self.program.set_position(pos.try_into().unwrap());
-                    }
-                }
-                Bytecode::JmpGt => {
-                    let pos = self.next_i64()?;
-                    if self.stack.pop() == Ordering::Greater as i64 {
-                        self.program.set_position(pos.try_into().unwrap());
+                    let pos = self.next_usize()?;
+                    if self.stack.pop() == Ordering::Equal as i32 {
+                        self.program.set_position(pos as u64);
                     }
                 }
                 Bytecode::JmpNe => {
-                    let pos = self.next_i64()?;
-                    if self.stack.pop() != Ordering::Equal as i64 {
+                    let pos = self.next_usize()?;
+                    if self.stack.pop() != Ordering::Equal as i32 {
+                        self.program.set_position(pos.try_into().unwrap());
+                    }
+                }
+                Bytecode::JmpLt => {
+                    let pos = self.next_usize()?;
+                    if self.stack.pop() == Ordering::Less as i32 {
+                        self.program.set_position(pos as u64);
+                    }
+                }
+                Bytecode::JmpGt => {
+                    let pos = self.next_usize()?;
+                    if self.stack.pop() == Ordering::Greater as i32 {
                         self.program.set_position(pos.try_into().unwrap());
                     }
                 }

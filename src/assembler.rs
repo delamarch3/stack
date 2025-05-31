@@ -4,6 +4,7 @@ use std::mem;
 use std::str::{Chars, FromStr};
 
 use crate::interpreter::Bytecode;
+use crate::number::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -181,7 +182,8 @@ impl Assembler {
     }
 
     pub fn assemble(mut self) -> Result<Vec<u8>> {
-        self.parse_entry()?;
+        self.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
+        self.assemble_label()?;
 
         while let Some(token) = self.next_token() {
             match token {
@@ -202,30 +204,15 @@ impl Assembler {
             let Some(position) = self.labels.get(&label) else {
                 Err(format!("could not resolve label: {label}"))?
             };
-            self.program[i..i + mem::size_of::<i64>()].copy_from_slice(&position.to_be_bytes());
+            self.program[i..i + mem::size_of::<i64>()].copy_from_slice(&position.to_le_bytes());
         }
 
         Ok(self.program)
     }
 
-    fn parse_entry(&mut self) -> Result<()> {
-        self.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
-
-        let entry = match self.next_token() {
-            Some(Token::Word(entry)) => entry,
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            _ => unreachable!(),
-        };
-
-        self.unresolved.insert(self.program.len(), entry);
-        self.program.extend(0i64.to_be_bytes());
-
-        Ok(())
-    }
-
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
-            "push" => self.assemble_operator_with_operand::<i64>(Bytecode::Push)?,
+            "push" => self.assemble_operator_with_operand::<i32>(Bytecode::Push)?,
             "pop" => self.assemble_operator(Bytecode::Pop),
             "load" => self.assemble_operator_with_operand::<usize>(Bytecode::Load)?,
             "store" => self.assemble_operator_with_operand::<usize>(Bytecode::Store)?,
@@ -233,7 +220,13 @@ impl Assembler {
             "sub" => self.assemble_operator(Bytecode::Sub),
             "mul" => self.assemble_operator(Bytecode::Mul),
             "div" => self.assemble_operator(Bytecode::Div),
-            "cmp" => self.assemble_operator_with_operand::<i64>(Bytecode::Cmp)?,
+            "cmp" => self.assemble_operator_with_operand::<i32>(Bytecode::Cmp)?,
+            "swap" => self.assemble_operator(Bytecode::Swap),
+            "dup" => self.assemble_operator(Bytecode::Dup),
+            "over" => self.assemble_operator(Bytecode::Over),
+            "rot" => self.assemble_operator(Bytecode::Rot),
+            "fail" => self.assemble_operator(Bytecode::Fail),
+            "ret" => self.assemble_operator(Bytecode::Ret),
             "jmp" => {
                 let code = if self.check(&[Token::Dot]) {
                     match self.next_token() {
@@ -252,25 +245,8 @@ impl Assembler {
                 };
 
                 self.assemble_operator(code);
-                match self.next_token() {
-                    Some(Token::Word(label)) => {
-                        self.unresolved.insert(self.program.len(), label);
-                        self.program.extend(0i64.to_be_bytes());
-                    }
-                    Some(Token::Value(value)) => {
-                        let value = value.parse::<i64>()?;
-                        self.program.extend(value.to_be_bytes());
-                    }
-                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
-                    _ => unreachable!(),
-                }
+                self.assemble_label()?;
             }
-            "swap" => self.assemble_operator(Bytecode::Swap),
-            "dup" => self.assemble_operator(Bytecode::Dup),
-            "over" => self.assemble_operator(Bytecode::Over),
-            "rot" => self.assemble_operator(Bytecode::Rot),
-            "fail" => self.assemble_operator(Bytecode::Fail),
-            "ret" => self.assemble_operator(Bytecode::Ret),
             word => Err(format!("unknown instruction: {word}"))?,
         }
 
@@ -278,7 +254,7 @@ impl Assembler {
     }
 
     fn assemble_operator(&mut self, code: Bytecode) {
-        self.program.extend((code as u8).to_be_bytes());
+        self.program.extend((code as u8).to_le_bytes());
     }
 
     fn assemble_operator_with_operand<T>(&mut self, code: Bytecode) -> Result<()>
@@ -290,11 +266,25 @@ impl Assembler {
         let Some(Token::Value(value)) = self.next_token() else {
             Err("expected value for {code:?}")?
         };
-        let Ok(value) = value.parse::<T>() else {
-            Err(format!("value cannot be parsed: {value}"))?
-        };
 
-        self.program.extend(value.to_be_bytes());
+        let value = value
+            .parse::<T>()
+            .map_err(|_| format!("value cannot be parsed: {value}"))?;
+
+        self.program.extend(value.to_le_bytes());
+
+        Ok(())
+    }
+
+    fn assemble_label(&mut self) -> Result<()> {
+        match self.next_token() {
+            Some(Token::Word(label)) => {
+                self.unresolved.insert(self.program.len(), label);
+                self.program.extend(0usize.to_le_bytes());
+            }
+            Some(token) => Err(format!("unexpected token: {token:?}"))?,
+            _ => unreachable!(),
+        };
 
         Ok(())
     }
@@ -325,47 +315,6 @@ impl Assembler {
         Some(token)
     }
 }
-
-trait Number {
-    const SIZE: usize;
-    type Bytes: IntoIterator<Item = u8>;
-    fn to_be_bytes(&self) -> Self::Bytes;
-    fn to_le_bytes(&self) -> Self::Bytes;
-}
-
-impl Number for i32 {
-    const SIZE: usize = mem::size_of::<i32>();
-    type Bytes = [u8; Self::SIZE];
-
-    fn to_be_bytes(&self) -> Self::Bytes {
-        i32::to_be_bytes(*self)
-    }
-
-    fn to_le_bytes(&self) -> Self::Bytes {
-        i32::to_le_bytes(*self)
-    }
-}
-
-macro_rules! impl_number {
-    ($($ty:ty),*) => {
-        $(
-        impl Number for $ty {
-            const SIZE: usize = mem::size_of::<$ty>();
-            type Bytes = [u8; Self::SIZE];
-
-            fn to_be_bytes(&self) -> Self::Bytes {
-                <$ty>::to_be_bytes(*self)
-            }
-
-            fn to_le_bytes(&self) -> Self::Bytes {
-                <$ty>::to_le_bytes(*self)
-            }
-        }
-        )*
-    };
-}
-
-impl_number!(i64, usize);
 
 #[cfg(test)]
 mod test {
@@ -441,13 +390,13 @@ ret";
         let have = Assembler::new(&src).assemble()?;
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
-            0, 0, 0, 0, 0, 0, 0, 17,
-            Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1,
-            Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // main:
-            Bytecode::Push as u8,  0, 0, 0, 0, 0, 0, 0, 1, // loop:
+            13, 0, 0, 0, 0, 0, 0, 0,
+            Bytecode::Push as u8,  1, 0, 0, 0,
+            Bytecode::Push as u8,  1, 0, 0, 0, // main:
+            Bytecode::Push as u8,  1, 0, 0, 0, // loop:
             Bytecode::Add as u8,
-            Bytecode::Cmp as u8,   0, 0, 0, 0, 0, 0, 0, 10,
-            Bytecode::JmpLt as u8, 0, 0, 0, 0, 0, 0, 0, 26, // jmp loop
+            Bytecode::Cmp as u8,   10, 0, 0, 0,
+            Bytecode::JmpLt as u8, 18, 0, 0, 0, 0, 0, 0, 0, // jmp loop
             Bytecode::Ret as u8
         ];
         assert_eq!(want, have);
