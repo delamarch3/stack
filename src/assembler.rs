@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::iter::Peekable;
 use std::mem;
-use std::str::Chars;
+use std::str::{Chars, FromStr};
 
 use crate::interpreter::Bytecode;
 
@@ -225,13 +225,15 @@ impl Assembler {
 
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
-            "push" => self.assemble_operator(Bytecode::Push, 1)?,
-            "pop" => self.assemble_operator(Bytecode::Pop, 0)?,
-            "add" => self.assemble_operator(Bytecode::Add, 0)?,
-            "sub" => self.assemble_operator(Bytecode::Sub, 0)?,
-            "mul" => self.assemble_operator(Bytecode::Mul, 0)?,
-            "div" => self.assemble_operator(Bytecode::Div, 0)?,
-            "cmp" => self.assemble_operator(Bytecode::Cmp, 1)?,
+            "push" => self.assemble_operator_with_operand::<i64>(Bytecode::Push)?,
+            "pop" => self.assemble_operator(Bytecode::Pop),
+            "load" => self.assemble_operator_with_operand::<usize>(Bytecode::Load)?,
+            "store" => self.assemble_operator_with_operand::<usize>(Bytecode::Store)?,
+            "add" => self.assemble_operator(Bytecode::Add),
+            "sub" => self.assemble_operator(Bytecode::Sub),
+            "mul" => self.assemble_operator(Bytecode::Mul),
+            "div" => self.assemble_operator(Bytecode::Div),
+            "cmp" => self.assemble_operator_with_operand::<i64>(Bytecode::Cmp)?,
             "jmp" => {
                 let code = if self.check(&[Token::Dot]) {
                     match self.next_token() {
@@ -249,7 +251,7 @@ impl Assembler {
                     Bytecode::Jmp
                 };
 
-                self.assemble_operator(code, 0)?;
+                self.assemble_operator(code);
                 match self.next_token() {
                     Some(Token::Word(label)) => {
                         self.unresolved.insert(self.program.len(), label);
@@ -263,28 +265,36 @@ impl Assembler {
                     _ => unreachable!(),
                 }
             }
-            "swap" => self.assemble_operator(Bytecode::Swap, 0)?,
-            "dup" => self.assemble_operator(Bytecode::Dup, 0)?,
-            "over" => self.assemble_operator(Bytecode::Over, 0)?,
-            "rot" => self.assemble_operator(Bytecode::Rot, 0)?,
-            "fail" => self.assemble_operator(Bytecode::Fail, 0)?,
-            "ret" => self.assemble_operator(Bytecode::Ret, 0)?,
+            "swap" => self.assemble_operator(Bytecode::Swap),
+            "dup" => self.assemble_operator(Bytecode::Dup),
+            "over" => self.assemble_operator(Bytecode::Over),
+            "rot" => self.assemble_operator(Bytecode::Rot),
+            "fail" => self.assemble_operator(Bytecode::Fail),
+            "ret" => self.assemble_operator(Bytecode::Ret),
             word => Err(format!("unknown instruction: {word}"))?,
         }
 
         Ok(())
     }
 
-    fn assemble_operator(&mut self, code: Bytecode, n: usize) -> Result<()> {
+    fn assemble_operator(&mut self, code: Bytecode) {
         self.program.extend((code as u8).to_be_bytes());
+    }
 
-        for _ in 0..n {
-            let Some(Token::Value(value)) = self.next_token() else {
-                Err("expected value for {code:?}")?
-            };
-            let value = value.parse::<i64>()?;
-            self.program.extend(value.to_be_bytes());
-        }
+    fn assemble_operator_with_operand<T>(&mut self, code: Bytecode) -> Result<()>
+    where
+        T: FromStr + Number,
+    {
+        self.assemble_operator(code);
+
+        let Some(Token::Value(value)) = self.next_token() else {
+            Err("expected value for {code:?}")?
+        };
+        let Ok(value) = value.parse::<T>() else {
+            Err(format!("value cannot be parsed: {value}"))?
+        };
+
+        self.program.extend(value.to_be_bytes());
 
         Ok(())
     }
@@ -315,6 +325,47 @@ impl Assembler {
         Some(token)
     }
 }
+
+trait Number {
+    const SIZE: usize;
+    type Bytes: IntoIterator<Item = u8>;
+    fn to_be_bytes(&self) -> Self::Bytes;
+    fn to_le_bytes(&self) -> Self::Bytes;
+}
+
+impl Number for i32 {
+    const SIZE: usize = mem::size_of::<i32>();
+    type Bytes = [u8; Self::SIZE];
+
+    fn to_be_bytes(&self) -> Self::Bytes {
+        i32::to_be_bytes(*self)
+    }
+
+    fn to_le_bytes(&self) -> Self::Bytes {
+        i32::to_le_bytes(*self)
+    }
+}
+
+macro_rules! impl_number {
+    ($($ty:ty),*) => {
+        $(
+        impl Number for $ty {
+            const SIZE: usize = mem::size_of::<$ty>();
+            type Bytes = [u8; Self::SIZE];
+
+            fn to_be_bytes(&self) -> Self::Bytes {
+                <$ty>::to_be_bytes(*self)
+            }
+
+            fn to_le_bytes(&self) -> Self::Bytes {
+                <$ty>::to_le_bytes(*self)
+            }
+        }
+        )*
+    };
+}
+
+impl_number!(i64, usize);
 
 #[cfg(test)]
 mod test {
