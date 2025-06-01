@@ -407,4 +407,38 @@ ret";
         assert_eq!(want, have);
         Ok(())
     }
+
+    #[test]
+    fn test_assemble2() -> Result<()> {
+        let src = "
+.entry main
+
+main:
+    push 22
+    push 33
+    call add ; local0 = 22, local1 = 33
+    ; store 0
+    ret
+
+add:
+   load 0
+   load 1
+   add
+   ret";
+        let have = Assembler::new(&src).assemble()?;
+        #[rustfmt::skip]
+        let want: Vec<u8> = vec![
+            /* 0  */ 8, 0, 0, 0, 0, 0, 0, 0,
+            /* 8  */ Bytecode::Push as u8, 22, 0, 0, 0,
+            /* 13 */ Bytecode::Push as u8, 33, 0, 0, 0,
+            /* 18 */ Bytecode::Call as u8, 28, 0, 0, 0, 0, 0, 0, 0,
+            /* 27 */ Bytecode::Ret as u8,
+            /* 28 */ Bytecode::Load as u8, 0, 0, 0, 0, 0, 0, 0, 0,
+            /* 36 */ Bytecode::Load as u8, 1, 0, 0, 0, 0, 0, 0, 0,
+            /* 44 */ Bytecode::Add as u8,
+            /* 45 */ Bytecode::Ret as u8
+        ];
+        assert_eq!(want, have);
+        Ok(())
+    }
 }

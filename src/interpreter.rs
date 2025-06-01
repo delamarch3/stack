@@ -100,7 +100,7 @@ impl<'a> ProgramCounter<'a> {
 }
 
 const LOCALS_SIZE: usize = mem::size_of::<i32>() * 128;
-struct Locals {
+pub struct Locals {
     locals: [u8; LOCALS_SIZE],
 }
 
@@ -136,8 +136,7 @@ pub enum FrameResult {
 }
 
 impl Frame {
-    pub fn new(opstack: OperandStack, entry: usize, ret: usize) -> Self {
-        let locals = Locals::default();
+    pub fn new(locals: Locals, opstack: OperandStack, entry: usize, ret: usize) -> Self {
         Self {
             opstack,
             locals,
@@ -213,16 +212,14 @@ impl Frame {
                     let mut locals = Locals::default();
                     (0..self.opstack.size())
                         .rev()
-                        .for_each(|i| locals.write(i, self.opstack.pop()));
-                    let frame = Frame::new(opstack, entry, ret);
-                    return Ok(FrameResult::Call(frame));
+                        .for_each(|i| locals.write::<i32>(i, self.opstack.pop()));
+                    let frame = Frame::new(locals, opstack, entry, ret);
+                    break Ok(FrameResult::Call(frame));
                 }
                 Bytecode::Fail => Err("FAILED")?,
-                Bytecode::Ret => break,
+                Bytecode::Ret => break Ok(FrameResult::Ret),
             }
         }
-
-        Ok(FrameResult::Ret)
     }
 }
 
@@ -237,7 +234,8 @@ impl<'a> Interpreter<'a> {
         let mut pc = ProgramCounter::new(program);
         let entry = pc.next_usize()?;
         let opstack = OperandStack::default();
-        let main = Frame::new(opstack, entry, ENTRY_RET);
+        let locals = Locals::default();
+        let main = Frame::new(locals, opstack, entry, ENTRY_RET);
         let frames = vec![];
 
         Ok(Self { pc, main, frames })
@@ -248,24 +246,33 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn run(&mut self) -> Result<()> {
+        // TODO: consolidate this loop
+        // TODO: should functions return values by popping onto caller frame?
         loop {
+            let mut ret_opstack = None;
             if let Some(mut current) = self.frames.pop() {
                 match current.run(&mut self.pc)? {
                     FrameResult::Call(next) => {
                         self.pc.set(next.entry as u64);
-
                         self.frames.push(current);
                         self.frames.push(next);
                     }
                     FrameResult::Ret => {
                         self.pc.set(current.ret as u64);
-                        continue;
+                        ret_opstack = Some(current.opstack);
                     }
                 }
             }
 
+            if let Some(opstack) = ret_opstack.take() {
+                println!("{}", opstack);
+            }
+
             match self.main.run(&mut self.pc)? {
-                FrameResult::Call(next) => self.frames.push(next),
+                FrameResult::Call(next) => {
+                    self.pc.set(next.entry as u64);
+                    self.frames.push(next);
+                }
                 FrameResult::Ret => break,
             }
         }
