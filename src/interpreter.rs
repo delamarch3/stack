@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 use std::io::{Cursor, Read};
 use std::mem;
 
-use crate::number::Number;
 use crate::stack::OperandStack;
+use crate::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 

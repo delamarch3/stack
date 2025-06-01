@@ -4,7 +4,7 @@ use std::mem;
 use std::str::{Chars, FromStr};
 
 use crate::interpreter::Bytecode;
-use crate::number::Number;
+use crate::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
