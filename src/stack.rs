@@ -1,9 +1,18 @@
-pub struct Stack {
-    stack: [i32; 64],
+const STACK_SIZE: usize = 64;
+pub struct OperandStack {
+    stack: [i32; STACK_SIZE],
     ptr: usize,
 }
 
-impl std::fmt::Display for Stack {
+impl Default for OperandStack {
+    fn default() -> Self {
+        let stack = [0; STACK_SIZE];
+        let ptr = 0;
+        Self { stack, ptr }
+    }
+}
+
+impl std::fmt::Display for OperandStack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let until = if self.ptr < 64 - 8 {
             self.ptr + 8
@@ -26,11 +35,9 @@ impl std::fmt::Display for Stack {
     }
 }
 
-impl Stack {
-    pub fn new() -> Self {
-        let stack = [0; 64];
-        let ptr = 0;
-        Self { stack, ptr }
+impl OperandStack {
+    pub fn size(&self) -> usize {
+        self.ptr
     }
 
     pub fn push(&mut self, value: i32) {
@@ -94,11 +101,11 @@ impl Stack {
 
 #[cfg(test)]
 mod test {
-    use super::Stack;
+    use super::OperandStack;
 
     #[test]
     fn test_stack() {
-        let mut stack = Stack::new();
+        let mut stack = OperandStack::default();
         stack.push(10);
         stack.push(15);
         stack.add();

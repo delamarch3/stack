@@ -4,7 +4,7 @@ use std::io::Read;
 use std::process;
 
 use stack::interpreter::Interpreter;
-use stack::stack::Stack;
+use stack::stack::OperandStack;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -20,14 +20,14 @@ fn main() -> Result<()> {
     let mut file = File::open(path)?;
     file.read_to_end(&mut src)?;
 
-    let stack = Stack::new();
+    let stack = OperandStack::default();
     let mut interpreter = Interpreter::new(stack, &src);
 
     if let Err(err) = interpreter.run() {
         eprintln!("{err}");
     };
 
-    eprintln!("{}", interpreter.stack());
+    eprintln!("{}", interpreter.opstack());
 
     Ok(())
 }

@@ -212,21 +212,22 @@ impl Assembler {
 
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
-            "push" => self.assemble_operator_with_operand::<i32>(Bytecode::Push)?,
+            "push" => self.assemble_operator_with_value::<i32>(Bytecode::Push)?,
             "pop" => self.assemble_operator(Bytecode::Pop),
-            "load" => self.assemble_operator_with_operand::<usize>(Bytecode::Load)?,
-            "store" => self.assemble_operator_with_operand::<usize>(Bytecode::Store)?,
+            "load" => self.assemble_operator_with_value::<usize>(Bytecode::Load)?,
+            "store" => self.assemble_operator_with_value::<usize>(Bytecode::Store)?,
             "add" => self.assemble_operator(Bytecode::Add),
             "sub" => self.assemble_operator(Bytecode::Sub),
             "mul" => self.assemble_operator(Bytecode::Mul),
             "div" => self.assemble_operator(Bytecode::Div),
-            "cmp" => self.assemble_operator_with_operand::<i32>(Bytecode::Cmp)?,
+            "cmp" => self.assemble_operator_with_value::<i32>(Bytecode::Cmp)?,
             "swap" => self.assemble_operator(Bytecode::Swap),
             "dup" => self.assemble_operator(Bytecode::Dup),
             "over" => self.assemble_operator(Bytecode::Over),
             "rot" => self.assemble_operator(Bytecode::Rot),
             "fail" => self.assemble_operator(Bytecode::Fail),
             "ret" => self.assemble_operator(Bytecode::Ret),
+            "call" => self.assemble_operator_with_label(Bytecode::Call)?,
             "jmp" => {
                 let code = if self.check(&[Token::Dot]) {
                     match self.next_token() {
@@ -244,8 +245,7 @@ impl Assembler {
                     Bytecode::Jmp
                 };
 
-                self.assemble_operator(code);
-                self.assemble_label()?;
+                self.assemble_operator_with_label(code)?;
             }
             word => Err(format!("unknown instruction: {word}"))?,
         }
@@ -257,7 +257,7 @@ impl Assembler {
         self.program.extend((code as u8).to_le_bytes());
     }
 
-    fn assemble_operator_with_operand<T>(&mut self, code: Bytecode) -> Result<()>
+    fn assemble_operator_with_value<T>(&mut self, code: Bytecode) -> Result<()>
     where
         T: FromStr + Number,
     {
@@ -274,6 +274,11 @@ impl Assembler {
         self.program.extend(value.to_le_bytes());
 
         Ok(())
+    }
+
+    fn assemble_operator_with_label(&mut self, code: Bytecode) -> Result<()> {
+        self.assemble_operator(code);
+        self.assemble_label()
     }
 
     fn assemble_label(&mut self) -> Result<()> {
