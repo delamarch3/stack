@@ -123,24 +123,22 @@ impl Locals {
 }
 
 const ENTRY_RET: usize = 0;
-pub struct Frame<'a> {
-    pc: ProgramCounter<'a>,
+pub struct Frame {
     opstack: OperandStack,
     locals: Locals,
     entry: usize,
     ret: usize,
 }
 
-pub enum FrameResult<'a> {
-    Call(Frame<'a>),
+pub enum FrameResult {
+    Call(Frame),
     Ret,
 }
 
-impl<'a> Frame<'a> {
-    pub fn new(pc: ProgramCounter<'a>, opstack: OperandStack, entry: usize, ret: usize) -> Self {
+impl Frame {
+    pub fn new(opstack: OperandStack, entry: usize, ret: usize) -> Self {
         let locals = Locals::default();
         Self {
-            pc,
             opstack,
             locals,
             entry,
@@ -148,24 +146,24 @@ impl<'a> Frame<'a> {
         }
     }
 
-    pub fn run(&mut self) -> Result<FrameResult<'a>> {
+    pub fn run<'a>(&mut self, pc: &mut ProgramCounter<'_>) -> Result<FrameResult> {
         loop {
-            match self.pc.next_op()? {
+            match pc.next_op()? {
                 Bytecode::Push => {
-                    let val = self.pc.next_i32()?;
+                    let val = pc.next_i32()?;
                     self.opstack.push(val);
                 }
                 Bytecode::Pop => {
                     self.opstack.pop();
                 }
                 Bytecode::Load => {
-                    let i = self.pc.next_usize()?;
+                    let i = pc.next_usize()?;
                     let val = self.locals.read::<i32>(i);
                     self.opstack.push(val);
                 }
                 Bytecode::Store => {
                     let a = self.opstack.pop();
-                    let i = self.pc.next_usize()?;
+                    let i = pc.next_usize()?;
                     self.locals.write::<i32>(i, a);
                 }
                 Bytecode::Add => self.opstack.add(),
@@ -173,35 +171,35 @@ impl<'a> Frame<'a> {
                 Bytecode::Mul => self.opstack.mul(),
                 Bytecode::Div => self.opstack.div(),
                 Bytecode::Cmp => {
-                    let lhs = self.pc.next_i32()?;
+                    let lhs = pc.next_i32()?;
                     self.opstack.cmp(lhs);
                 }
                 Bytecode::Jmp => {
-                    let pos = self.pc.next_usize()?;
-                    self.pc.set(pos as u64);
+                    let pos = pc.next_usize()?;
+                    pc.set(pos as u64);
                 }
                 Bytecode::JmpEq => {
-                    let pos = self.pc.next_usize()?;
+                    let pos = pc.next_usize()?;
                     if self.opstack.pop() == Ordering::Equal as i32 {
-                        self.pc.set(pos as u64);
+                        pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpNe => {
-                    let pos = self.pc.next_usize()?;
+                    let pos = pc.next_usize()?;
                     if self.opstack.pop() != Ordering::Equal as i32 {
-                        self.pc.set(pos as u64);
+                        pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpLt => {
-                    let pos = self.pc.next_usize()?;
+                    let pos = pc.next_usize()?;
                     if self.opstack.pop() == Ordering::Less as i32 {
-                        self.pc.set(pos as u64);
+                        pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpGt => {
-                    let pos = self.pc.next_usize()?;
+                    let pos = pc.next_usize()?;
                     if self.opstack.pop() == Ordering::Greater as i32 {
-                        self.pc.set(pos as u64);
+                        pc.set(pos as u64);
                     }
                 }
                 Bytecode::Swap => self.opstack.swap(),
@@ -209,16 +207,14 @@ impl<'a> Frame<'a> {
                 Bytecode::Over => self.opstack.over(),
                 Bytecode::Rot => self.opstack.rot(),
                 Bytecode::Call => {
-                    let entry = self.pc.next_usize()?;
-                    let ret = self.pc.position() as usize;
+                    let entry = pc.next_usize()?;
+                    let ret = pc.position() as usize;
                     let opstack = OperandStack::default();
                     let mut locals = Locals::default();
                     (0..self.opstack.size())
                         .rev()
                         .for_each(|i| locals.write(i, self.opstack.pop()));
-                    let mut program = self.pc.clone();
-                    program.set(entry as u64);
-                    let frame = Frame::new(program, opstack, entry, ret);
+                    let frame = Frame::new(opstack, entry, ret);
                     return Ok(FrameResult::Call(frame));
                 }
                 Bytecode::Fail => Err("FAILED")?,
@@ -231,19 +227,20 @@ impl<'a> Frame<'a> {
 }
 
 pub struct Interpreter<'a> {
-    main: Frame<'a>,
-    frames: Vec<Frame<'a>>,
+    pc: ProgramCounter<'a>,
+    main: Frame,
+    frames: Vec<Frame>,
 }
 
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
-        let mut program = ProgramCounter::new(program);
+        let mut pc = ProgramCounter::new(program);
+        let entry = pc.next_usize()?;
         let opstack = OperandStack::default();
-        let entry = program.next_usize()?;
-        let main = Frame::new(program, opstack, entry, ENTRY_RET);
+        let main = Frame::new(opstack, entry, ENTRY_RET);
         let frames = vec![];
 
-        Ok(Self { main, frames })
+        Ok(Self { pc, main, frames })
     }
 
     pub fn opstack(&self) -> &OperandStack {
@@ -253,16 +250,21 @@ impl<'a> Interpreter<'a> {
     pub fn run(&mut self) -> Result<()> {
         loop {
             if let Some(mut current) = self.frames.pop() {
-                match current.run()? {
+                match current.run(&mut self.pc)? {
                     FrameResult::Call(next) => {
+                        self.pc.set(next.entry as u64);
+
                         self.frames.push(current);
                         self.frames.push(next);
                     }
-                    FrameResult::Ret => continue,
+                    FrameResult::Ret => {
+                        self.pc.set(current.ret as u64);
+                        continue;
+                    }
                 }
             }
 
-            match self.main.run()? {
+            match self.main.run(&mut self.pc)? {
                 FrameResult::Call(next) => self.frames.push(next),
                 FrameResult::Ret => break,
             }
