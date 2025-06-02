@@ -142,7 +142,7 @@ impl<'s> Tokeniser<'s> {
                     Token::Value(value)
                 }
                 c if c.is_alphabetic() => {
-                    let word = self.take_while(|c| c.is_alphabetic());
+                    let word = self.take_while(|c| c.is_alphanumeric());
                     if let Ok(keyword) = word.as_str().try_into() {
                         Token::Keyword(keyword)
                     } else {

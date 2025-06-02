@@ -161,9 +161,9 @@ impl Frame {
                     self.opstack.push(val);
                 }
                 Bytecode::Store => {
-                    let a = self.opstack.pop();
                     let i = pc.next_usize()?;
-                    self.locals.write::<i32>(i, a);
+                    let val = self.opstack.pop();
+                    self.locals.write::<i32>(i, val);
                 }
                 Bytecode::Add => self.opstack.add(),
                 Bytecode::Sub => self.opstack.sub(),
