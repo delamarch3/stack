@@ -225,7 +225,6 @@ impl Frame {
 
 pub struct Interpreter<'a> {
     pc: ProgramCounter<'a>,
-    main: Frame,
     frames: Vec<Frame>,
 }
 
@@ -236,47 +235,37 @@ impl<'a> Interpreter<'a> {
         let opstack = OperandStack::default();
         let locals = Locals::default();
         let main = Frame::new(locals, opstack, entry, ENTRY_RET);
-        let frames = vec![];
+        let frames = vec![main];
 
-        Ok(Self { pc, main, frames })
+        Ok(Self { pc, frames })
     }
 
     pub fn opstack(&self) -> &OperandStack {
-        &self.main.opstack
+        &self.frames[0].opstack
     }
 
     pub fn run(&mut self) -> Result<()> {
-        // TODO: consolidate this loop
-        // TODO: should functions return values by popping onto caller frame?
-        loop {
-            let mut ret_opstack = None;
-            if let Some(mut current) = self.frames.pop() {
-                match current.run(&mut self.pc)? {
-                    FrameResult::Call(next) => {
-                        self.pc.set(next.entry as u64);
-                        self.frames.push(current);
-                        self.frames.push(next);
-                    }
-                    FrameResult::Ret => {
-                        self.pc.set(current.ret as u64);
-                        ret_opstack = Some(current.opstack);
-                    }
-                }
-            }
+        while let Some(mut current) = self.frames.pop() {
+            let len = self.frames.len();
+            let main = len == 0;
 
-            if let Some(opstack) = ret_opstack.take() {
-                println!("{}", opstack);
-            }
-
-            match self.main.run(&mut self.pc)? {
+            match current.run(&mut self.pc)? {
                 FrameResult::Call(next) => {
                     self.pc.set(next.entry as u64);
+                    self.frames.push(current);
                     self.frames.push(next);
                 }
-                FrameResult::Ret => break,
+                FrameResult::Ret if main => {
+                    self.frames.push(current);
+                    break;
+                }
+                FrameResult::Ret => {
+                    self.pc.set(current.ret as u64);
+                    // TODO: should functions return values by popping onto caller frame?
+                    self.frames[len - 1].opstack.push(current.opstack.pop());
+                }
             }
         }
-
         Ok(())
     }
 }
