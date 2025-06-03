@@ -7,11 +7,8 @@ main:
 
 fib:
     load 0
-    cmp 1
-    jmp.lt base0
-    load 0
     cmp 2
-    jmp.lt base1
+    jmp.lt base
 
     load 0
     push 1
@@ -30,9 +27,6 @@ fib:
     add
     ret
 
-base0:
-    push 0
-    ret
-base1:
-    push 1
+base:
+    load 0
     ret
