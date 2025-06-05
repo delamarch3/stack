@@ -133,6 +133,7 @@ pub struct Frame {
 pub enum FrameResult {
     Call(Frame),
     Ret,
+    Fail,
 }
 
 impl Frame {
@@ -216,7 +217,7 @@ impl Frame {
                     let frame = Frame::new(locals, opstack, entry, ret);
                     break Ok(FrameResult::Call(frame));
                 }
-                Bytecode::Fail => Err("FAILED")?,
+                Bytecode::Fail => break Ok(FrameResult::Fail),
                 Bytecode::Ret => break Ok(FrameResult::Ret),
             }
         }
@@ -264,8 +265,10 @@ impl<'a> Interpreter<'a> {
                     // TODO: should functions return values by popping onto caller frame?
                     self.frames[len - 1].opstack.push(current.opstack.pop());
                 }
+                FrameResult::Fail => Err("FAILED")?,
             }
         }
+
         Ok(())
     }
 }
