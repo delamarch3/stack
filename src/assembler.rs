@@ -213,18 +213,28 @@ impl Assembler {
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
             "push" => self.assemble_operator_with_value::<i32>(Bytecode::Push)?,
+            "pushd" => self.assemble_operator_with_value::<i64>(Bytecode::PushD)?,
+            "pushb" => self.assemble_operator_with_value::<i8>(Bytecode::PushB)?,
             "pop" => self.assemble_operator(Bytecode::Pop),
+            "popd" => self.assemble_operator(Bytecode::PopD),
             "load" => self.assemble_operator_with_value::<usize>(Bytecode::Load)?,
+            "loadd" => self.assemble_operator_with_value::<usize>(Bytecode::LoadD)?,
             "store" => self.assemble_operator_with_value::<usize>(Bytecode::Store)?,
+            "stored" => self.assemble_operator_with_value::<usize>(Bytecode::StoreD)?,
             "add" => self.assemble_operator(Bytecode::Add),
+            "addd" => self.assemble_operator(Bytecode::AddD),
+            "addb" => self.assemble_operator(Bytecode::AddB),
             "sub" => self.assemble_operator(Bytecode::Sub),
+            "subd" => self.assemble_operator(Bytecode::SubD),
+            "subb" => self.assemble_operator(Bytecode::SubB),
             "mul" => self.assemble_operator(Bytecode::Mul),
+            "muld" => self.assemble_operator(Bytecode::MulD),
             "div" => self.assemble_operator(Bytecode::Div),
+            "divd" => self.assemble_operator(Bytecode::DivD),
             "cmp" => self.assemble_operator_with_value::<i32>(Bytecode::Cmp)?,
-            "swap" => self.assemble_operator(Bytecode::Swap),
+            "cmpd" => self.assemble_operator_with_value::<i64>(Bytecode::CmpD)?,
             "dup" => self.assemble_operator(Bytecode::Dup),
-            "over" => self.assemble_operator(Bytecode::Over),
-            "rot" => self.assemble_operator(Bytecode::Rot),
+            "dupd" => self.assemble_operator(Bytecode::DupD),
             "fail" => self.assemble_operator(Bytecode::Fail),
             "ret" => self.assemble_operator(Bytecode::Ret),
             "call" => self.assemble_operator_with_label(Bytecode::Call)?,
@@ -236,7 +246,7 @@ impl Assembler {
                             "gt" => Bytecode::JmpGt,
                             "eq" => Bytecode::JmpEq,
                             "ne" => Bytecode::JmpNe,
-                            have => Err(format!("unexpected one of lt, gt, eq, ne. have: {have}"))?,
+                            have => Err(format!("expected (lt, gt, eq, ne), have: {have}"))?,
                         },
                         Some(token) => Err(format!("unexpected token: {token:?}"))?,
                         None => unreachable!(),
@@ -271,7 +281,13 @@ impl Assembler {
             .parse::<T>()
             .map_err(|_| format!("value cannot be parsed: {value}"))?;
 
-        self.program.extend(value.to_le_bytes());
+        if T::SIZE < 4 {
+            let mut buf = [0u8; 4];
+            buf[0..T::SIZE].copy_from_slice(value.to_le_bytes().as_ref());
+            self.program.extend(buf);
+        } else {
+            self.program.extend(value.to_le_bytes());
+        }
 
         Ok(())
     }

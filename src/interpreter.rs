@@ -10,25 +10,35 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Bytecode {
-    Push = 0,
+    Push,
+    PushD,
+    PushB,
     Pop,
+    PopD,
     Load,
+    LoadD,
     Store,
+    StoreD,
     Add,
+    AddD,
+    AddB,
     Sub,
+    SubD,
+    SubB,
     Mul,
+    MulD,
     Div,
+    DivD,
     Cmp,
+    CmpD,
+    Dup,
+    DupD,
+
     Jmp,
     JmpLt,
     JmpEq,
     JmpGt,
     JmpNe,
-    Swap,
-    Dup,
-    Over,
-    Rot,
-
     Call,
     Fail,
     Ret,
@@ -153,27 +163,39 @@ impl Frame {
                     let val = pc.next_i32()?;
                     self.opstack.push(val);
                 }
+                Bytecode::PushD => todo!(),
+                Bytecode::PushB => todo!(),
                 Bytecode::Pop => {
                     self.opstack.pop();
                 }
+                Bytecode::PopD => todo!(),
                 Bytecode::Load => {
                     let i = pc.next_usize()?;
                     let val = self.locals.read::<i32>(i);
                     self.opstack.push(val);
                 }
+                Bytecode::LoadD => todo!(),
                 Bytecode::Store => {
                     let i = pc.next_usize()?;
                     let val = self.opstack.pop();
                     self.locals.write::<i32>(i, val);
                 }
+                Bytecode::StoreD => todo!(),
                 Bytecode::Add => self.opstack.add(),
+                Bytecode::AddD => todo!(),
+                Bytecode::AddB => todo!(),
                 Bytecode::Sub => self.opstack.sub(),
+                Bytecode::SubD => todo!(),
+                Bytecode::SubB => todo!(),
                 Bytecode::Mul => self.opstack.mul(),
+                Bytecode::MulD => todo!(),
                 Bytecode::Div => self.opstack.div(),
+                Bytecode::DivD => todo!(),
                 Bytecode::Cmp => {
                     let lhs = pc.next_i32()?;
                     self.opstack.cmp(lhs);
                 }
+                Bytecode::CmpD => todo!(),
                 Bytecode::Jmp => {
                     let pos = pc.next_usize()?;
                     pc.set(pos as u64);
@@ -202,10 +224,8 @@ impl Frame {
                         pc.set(pos as u64);
                     }
                 }
-                Bytecode::Swap => self.opstack.swap(),
                 Bytecode::Dup => self.opstack.dup(),
-                Bytecode::Over => self.opstack.over(),
-                Bytecode::Rot => self.opstack.rot(),
+                Bytecode::DupD => todo!(),
                 Bytecode::Call => {
                     let entry = pc.next_usize()?;
                     let ret = pc.position() as usize;
