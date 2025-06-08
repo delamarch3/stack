@@ -4,7 +4,14 @@ pub mod interpreter;
 pub mod stack;
 
 #[allow(dead_code)]
-trait Number {
+pub(crate) trait Number:
+    Sized
+    + Ord
+    + std::ops::Add<Output = Self>
+    + std::ops::Sub<Output = Self>
+    + std::ops::Mul<Output = Self>
+    + std::ops::Div<Output = Self>
+{
     const SIZE: usize;
     type Bytes: IntoIterator<Item = u8> + AsRef<[u8]>;
     fn to_be_bytes(&self) -> Self::Bytes;

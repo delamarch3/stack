@@ -130,17 +130,21 @@ impl Locals {
     fn write<T: Number>(&mut self, i: usize, value: T) {
         self.locals[slot!(T, i)].copy_from_slice(value.to_le_bytes().as_ref());
     }
+
+    fn copy_from_slice(&mut self, slice: &[u8]) {
+        self.locals[..slice.len()].copy_from_slice(slice);
+    }
 }
 
 const ENTRY_RET: usize = 0;
-pub struct Frame {
+pub(crate) struct Frame {
     opstack: OperandStack,
     locals: Locals,
     entry: usize,
     ret: usize,
 }
 
-pub enum FrameResult {
+pub(crate) enum FrameResult {
     Call(Frame),
     Ret,
     Fail,
@@ -166,7 +170,7 @@ impl Frame {
                 Bytecode::PushD => todo!(),
                 Bytecode::PushB => todo!(),
                 Bytecode::Pop => {
-                    self.opstack.pop();
+                    self.opstack.pop::<i32>();
                 }
                 Bytecode::PopD => todo!(),
                 Bytecode::Load => {
@@ -181,15 +185,15 @@ impl Frame {
                     self.locals.write::<i32>(i, val);
                 }
                 Bytecode::StoreD => todo!(),
-                Bytecode::Add => self.opstack.add(),
+                Bytecode::Add => self.opstack.add::<i32>(),
                 Bytecode::AddD => todo!(),
                 Bytecode::AddB => todo!(),
-                Bytecode::Sub => self.opstack.sub(),
+                Bytecode::Sub => self.opstack.sub::<i32>(),
                 Bytecode::SubD => todo!(),
                 Bytecode::SubB => todo!(),
-                Bytecode::Mul => self.opstack.mul(),
+                Bytecode::Mul => self.opstack.mul::<i32>(),
                 Bytecode::MulD => todo!(),
-                Bytecode::Div => self.opstack.div(),
+                Bytecode::Div => self.opstack.div::<i32>(),
                 Bytecode::DivD => todo!(),
                 Bytecode::Cmp => {
                     let lhs = pc.next_i32()?;
@@ -202,38 +206,37 @@ impl Frame {
                 }
                 Bytecode::JmpEq => {
                     let pos = pc.next_usize()?;
-                    if self.opstack.pop() == Ordering::Equal as i32 {
+                    if self.opstack.pop::<i32>() == Ordering::Equal as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpNe => {
                     let pos = pc.next_usize()?;
-                    if self.opstack.pop() != Ordering::Equal as i32 {
+                    if self.opstack.pop::<i32>() != Ordering::Equal as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpLt => {
                     let pos = pc.next_usize()?;
-                    if self.opstack.pop() == Ordering::Less as i32 {
+                    if self.opstack.pop::<i32>() == Ordering::Less as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpGt => {
                     let pos = pc.next_usize()?;
-                    if self.opstack.pop() == Ordering::Greater as i32 {
+                    if self.opstack.pop::<i32>() == Ordering::Greater as i32 {
                         pc.set(pos as u64);
                     }
                 }
-                Bytecode::Dup => self.opstack.dup(),
+                Bytecode::Dup => self.opstack.dup::<i32>(),
                 Bytecode::DupD => todo!(),
                 Bytecode::Call => {
+                    let mut locals = Locals::default();
+                    locals.copy_from_slice(self.opstack.as_slice());
+                    self.opstack.clear();
                     let entry = pc.next_usize()?;
                     let ret = pc.position() as usize;
                     let opstack = OperandStack::default();
-                    let mut locals = Locals::default();
-                    (0..self.opstack.size())
-                        .rev()
-                        .for_each(|i| locals.write::<i32>(i, self.opstack.pop()));
                     let frame = Frame::new(locals, opstack, entry, ret);
                     break Ok(FrameResult::Call(frame));
                 }
@@ -261,8 +264,8 @@ impl<'a> Interpreter<'a> {
         Ok(Self { pc, frames })
     }
 
-    pub fn opstack(&self) -> &OperandStack {
-        &self.frames[0].opstack
+    pub fn print_opstack(&self) {
+        println!("{}", self.frames[0].opstack)
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -283,7 +286,9 @@ impl<'a> Interpreter<'a> {
                 FrameResult::Ret => {
                     self.pc.set(current.ret as u64);
                     // TODO: should functions return values by popping onto caller frame?
-                    self.frames[len - 1].opstack.push(current.opstack.pop());
+                    self.frames[len - 1]
+                        .opstack
+                        .push::<i32>(current.opstack.pop());
                 }
                 FrameResult::Fail => Err("FAILED")?,
             }

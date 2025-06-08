@@ -24,7 +24,7 @@ fn main() -> Result<()> {
         eprintln!("{err}");
     };
 
-    eprintln!("{}", interpreter.opstack());
+    interpreter.print_opstack();
 
     Ok(())
 }
