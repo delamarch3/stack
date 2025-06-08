@@ -18,24 +18,25 @@ impl Default for OperandStack {
 
 impl std::fmt::Display for OperandStack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let until = mem::size_of::<i32>() * 8;
+        let from = self.ptr.saturating_sub(i32::SIZE * 8);
+        let until = from + mem::size_of::<i32>() * 8;
 
         let width = 8;
         let mut sep = "";
-        let mut slice = &self.stack[..until];
+        let mut slice = &self.stack[from..until];
         write!(f, "[")?;
         while slice.len() > 0 {
-            let n = i32::from_le_bytes(slice[..mem::size_of::<i32>()].try_into().unwrap());
-            slice = &slice[mem::size_of::<i32>()..];
+            let n = i32::from_le_bytes(slice[..i32::SIZE].try_into().unwrap());
+            slice = &slice[i32::SIZE..];
             write!(f, "{sep}")?;
             write!(f, "{n:width$}")?;
             sep = ",";
         }
         write!(f, "]\n")?;
 
-        let ptr = self.ptr / 4;
-        let cursor = ptr + (ptr * width);
-        write!(f, "{:cursor$}^", "")
+        let ptr = (self.ptr / 4).min(8);
+        let width = ptr + ptr * width;
+        write!(f, "{:width$}^", "")
     }
 }
 
