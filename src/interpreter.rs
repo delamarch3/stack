@@ -15,10 +15,13 @@ pub enum Bytecode {
     PushB,
     Pop,
     PopD,
+    PopB,
     Load,
     LoadD,
+    LoadB,
     Store,
     StoreD,
+    StoreB,
     Add,
     AddD,
     AddB,
@@ -42,14 +45,6 @@ pub enum Bytecode {
     Call,
     Fail,
     Ret,
-}
-
-macro_rules! slot {
-    ($ty:ty, $i:expr) => {{
-        let from = $i * mem::size_of::<$ty>();
-        let to = from + mem::size_of::<$ty>();
-        from..to
-    }};
 }
 
 macro_rules! next {
@@ -100,13 +95,29 @@ impl<'a> ProgramCounter<'a> {
         Ok(op)
     }
 
+    fn next_i8(&mut self) -> Result<i8> {
+        Ok(next!(self, i8))
+    }
+
     fn next_i32(&mut self) -> Result<i32> {
         Ok(next!(self, i32))
     }
 
-    fn next_usize(&mut self) -> Result<usize> {
-        Ok(next!(self, usize))
+    fn next_i64(&mut self) -> Result<i64> {
+        Ok(next!(self, i64))
     }
+
+    fn next_u64(&mut self) -> Result<u64> {
+        Ok(next!(self, u64))
+    }
+}
+
+macro_rules! slot {
+    ($ty:ty, $i:expr) => {{
+        let from = $i * mem::size_of::<i32>();
+        let to = from + mem::size_of::<$ty>();
+        from..to
+    }};
 }
 
 const LOCALS_SIZE: usize = mem::size_of::<i32>() * 128;
@@ -123,12 +134,12 @@ impl Default for Locals {
 }
 
 impl Locals {
-    fn read<T: Number>(&self, i: usize) -> T {
-        T::from_le_bytes(&self.locals[slot!(T, i)])
+    fn read<T: Number>(&self, i: u64) -> T {
+        T::from_le_bytes(&self.locals[slot!(T, i as usize)])
     }
 
-    fn write<T: Number>(&mut self, i: usize, value: T) {
-        self.locals[slot!(T, i)].copy_from_slice(value.to_le_bytes().as_ref());
+    fn write<T: Number>(&mut self, i: u64, value: T) {
+        self.locals[slot!(T, i as usize)].copy_from_slice(value.to_le_bytes().as_ref());
     }
 
     fn copy_from_slice(&mut self, slice: &[u8]) {
@@ -140,7 +151,7 @@ const ENTRY_RET: usize = 0;
 pub(crate) struct Frame {
     opstack: OperandStack,
     locals: Locals,
-    entry: usize,
+    entry: u64,
     ret: usize,
 }
 
@@ -151,7 +162,7 @@ pub(crate) enum FrameResult {
 }
 
 impl Frame {
-    pub fn new(locals: Locals, opstack: OperandStack, entry: usize, ret: usize) -> Self {
+    pub fn new(locals: Locals, opstack: OperandStack, entry: u64, ret: usize) -> Self {
         Self {
             opstack,
             locals,
@@ -167,74 +178,106 @@ impl Frame {
                     let val = pc.next_i32()?;
                     self.opstack.push(val);
                 }
-                Bytecode::PushD => todo!(),
-                Bytecode::PushB => todo!(),
+                Bytecode::PushD => {
+                    let val = pc.next_i64()?;
+                    self.opstack.push(val);
+                }
+                Bytecode::PushB => {
+                    let val = pc.next_i8()?;
+                    self.opstack.push(val);
+                }
                 Bytecode::Pop => {
                     self.opstack.pop::<i32>();
                 }
-                Bytecode::PopD => todo!(),
+                Bytecode::PopD => {
+                    self.opstack.pop::<i64>();
+                }
+                Bytecode::PopB => {
+                    self.opstack.pop::<i8>();
+                }
                 Bytecode::Load => {
-                    let i = pc.next_usize()?;
+                    let i = pc.next_u64()?;
                     let val = self.locals.read::<i32>(i);
                     self.opstack.push(val);
                 }
-                Bytecode::LoadD => todo!(),
+                Bytecode::LoadD => {
+                    let i = pc.next_u64()?;
+                    let val = self.locals.read::<i64>(i);
+                    self.opstack.push(val);
+                }
+                Bytecode::LoadB => {
+                    let i = pc.next_u64()?;
+                    let val = self.locals.read::<i8>(i);
+                    self.opstack.push(val);
+                }
                 Bytecode::Store => {
-                    let i = pc.next_usize()?;
+                    let i = pc.next_u64()?;
                     let val = self.opstack.pop();
                     self.locals.write::<i32>(i, val);
                 }
-                Bytecode::StoreD => todo!(),
+                Bytecode::StoreD => {
+                    let i = pc.next_u64()?;
+                    let val = self.opstack.pop();
+                    self.locals.write::<i64>(i, val);
+                }
+                Bytecode::StoreB => {
+                    let i = pc.next_u64()?;
+                    let val = self.opstack.pop();
+                    self.locals.write::<i8>(i, val);
+                }
                 Bytecode::Add => self.opstack.add::<i32>(),
-                Bytecode::AddD => todo!(),
-                Bytecode::AddB => todo!(),
+                Bytecode::AddD => self.opstack.add::<i64>(),
+                Bytecode::AddB => self.opstack.add::<i8>(),
                 Bytecode::Sub => self.opstack.sub::<i32>(),
-                Bytecode::SubD => todo!(),
-                Bytecode::SubB => todo!(),
+                Bytecode::SubD => self.opstack.sub::<i64>(),
+                Bytecode::SubB => self.opstack.sub::<i8>(),
                 Bytecode::Mul => self.opstack.mul::<i32>(),
-                Bytecode::MulD => todo!(),
+                Bytecode::MulD => self.opstack.mul::<i64>(),
                 Bytecode::Div => self.opstack.div::<i32>(),
-                Bytecode::DivD => todo!(),
+                Bytecode::DivD => self.opstack.div::<i64>(),
                 Bytecode::Cmp => {
                     let lhs = pc.next_i32()?;
                     self.opstack.cmp(lhs);
                 }
-                Bytecode::CmpD => todo!(),
+                Bytecode::CmpD => {
+                    let lhs = pc.next_i64()?;
+                    self.opstack.cmp(lhs);
+                }
                 Bytecode::Jmp => {
-                    let pos = pc.next_usize()?;
+                    let pos = pc.next_u64()?;
                     pc.set(pos as u64);
                 }
                 Bytecode::JmpEq => {
-                    let pos = pc.next_usize()?;
+                    let pos = pc.next_u64()?;
                     if self.opstack.pop::<i32>() == Ordering::Equal as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpNe => {
-                    let pos = pc.next_usize()?;
+                    let pos = pc.next_u64()?;
                     if self.opstack.pop::<i32>() != Ordering::Equal as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpLt => {
-                    let pos = pc.next_usize()?;
+                    let pos = pc.next_u64()?;
                     if self.opstack.pop::<i32>() == Ordering::Less as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpGt => {
-                    let pos = pc.next_usize()?;
+                    let pos = pc.next_u64()?;
                     if self.opstack.pop::<i32>() == Ordering::Greater as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::Dup => self.opstack.dup::<i32>(),
-                Bytecode::DupD => todo!(),
+                Bytecode::DupD => self.opstack.dup::<i64>(),
                 Bytecode::Call => {
                     let mut locals = Locals::default();
                     locals.copy_from_slice(self.opstack.as_slice());
                     self.opstack.clear();
-                    let entry = pc.next_usize()?;
+                    let entry = pc.next_u64()?;
                     let ret = pc.position() as usize;
                     let opstack = OperandStack::default();
                     let frame = Frame::new(locals, opstack, entry, ret);
@@ -255,7 +298,7 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
         let mut pc = ProgramCounter::new(program);
-        let entry = pc.next_usize()?;
+        let entry = pc.next_u64()?;
         let opstack = OperandStack::default();
         let locals = Locals::default();
         let main = Frame::new(locals, opstack, entry, ENTRY_RET);

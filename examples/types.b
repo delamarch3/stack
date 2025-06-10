@@ -4,19 +4,19 @@ main:
     ret ; no return value
 
 func:
-    push   100 ; 32 (1 unit)
-    pushd 100 ; 64 (2 units)
-    pushb 8   ; 8  (1 unit)
+    push   100
+    push.d 100
+    push.b 8
 
-    ; stack size is 16
+    ; stack size is 13
 
-    storeb 0
-    stored 1  ; dword takes up two units of space, hence we skipped 2
-    store   3
+    store.b 0
+    store.d 1
+    store   3 ; dword takes up two units of space, hence we skipped 2
 
-    loadd 1
-    loadd 1
-    addd
+    load.d 1
+    load.d 1
+    add.d
 
     ; cmp will still produce a 1 unit value
     cmp.d 0
@@ -24,7 +24,7 @@ func:
     jmp.lt func
 
     load   3
-    loadd 1
-    loadb 0
+    load.d 1
+    load.b 0
 
     ret.b

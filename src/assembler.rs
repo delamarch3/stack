@@ -142,7 +142,7 @@ impl<'s> Tokeniser<'s> {
                     Token::Value(value)
                 }
                 c if c.is_alphabetic() => {
-                    let word = self.take_while(|c| c.is_alphanumeric());
+                    let word = self.take_while(|c| c.is_alphanumeric() || c == '.');
                     if let Ok(keyword) = word.as_str().try_into() {
                         Token::Keyword(keyword)
                     } else {
@@ -213,50 +213,41 @@ impl Assembler {
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
             "push" => self.assemble_operator_with_value::<i32>(Bytecode::Push)?,
-            "pushd" => self.assemble_operator_with_value::<i64>(Bytecode::PushD)?,
-            "pushb" => self.assemble_operator_with_value::<i8>(Bytecode::PushB)?,
+            "push.d" => self.assemble_operator_with_value::<i64>(Bytecode::PushD)?,
+            "push.b" => self.assemble_operator_with_value::<i8>(Bytecode::PushB)?,
             "pop" => self.assemble_operator(Bytecode::Pop),
-            "popd" => self.assemble_operator(Bytecode::PopD),
+            "pop.d" => self.assemble_operator(Bytecode::PopD),
+            "pop.b" => self.assemble_operator(Bytecode::PopB),
             "load" => self.assemble_operator_with_value::<usize>(Bytecode::Load)?,
-            "loadd" => self.assemble_operator_with_value::<usize>(Bytecode::LoadD)?,
+            "load.d" => self.assemble_operator_with_value::<usize>(Bytecode::LoadD)?,
+            "load.b" => self.assemble_operator_with_value::<usize>(Bytecode::LoadB)?,
             "store" => self.assemble_operator_with_value::<usize>(Bytecode::Store)?,
-            "stored" => self.assemble_operator_with_value::<usize>(Bytecode::StoreD)?,
+            "store.d" => self.assemble_operator_with_value::<usize>(Bytecode::StoreD)?,
+            "store.b" => self.assemble_operator_with_value::<usize>(Bytecode::StoreB)?,
             "add" => self.assemble_operator(Bytecode::Add),
-            "addd" => self.assemble_operator(Bytecode::AddD),
-            "addb" => self.assemble_operator(Bytecode::AddB),
+            "add.d" => self.assemble_operator(Bytecode::AddD),
+            "add.b" => self.assemble_operator(Bytecode::AddB),
             "sub" => self.assemble_operator(Bytecode::Sub),
-            "subd" => self.assemble_operator(Bytecode::SubD),
-            "subb" => self.assemble_operator(Bytecode::SubB),
+            "sub.d" => self.assemble_operator(Bytecode::SubD),
+            "sub.b" => self.assemble_operator(Bytecode::SubB),
             "mul" => self.assemble_operator(Bytecode::Mul),
-            "muld" => self.assemble_operator(Bytecode::MulD),
+            "mul.d" => self.assemble_operator(Bytecode::MulD),
             "div" => self.assemble_operator(Bytecode::Div),
-            "divd" => self.assemble_operator(Bytecode::DivD),
+            "div.d" => self.assemble_operator(Bytecode::DivD),
             "cmp" => self.assemble_operator_with_value::<i32>(Bytecode::Cmp)?,
-            "cmpd" => self.assemble_operator_with_value::<i64>(Bytecode::CmpD)?,
+            "cmp.d" => self.assemble_operator_with_value::<i64>(Bytecode::CmpD)?,
             "dup" => self.assemble_operator(Bytecode::Dup),
-            "dupd" => self.assemble_operator(Bytecode::DupD),
+            "dup.d" => self.assemble_operator(Bytecode::DupD),
             "fail" => self.assemble_operator(Bytecode::Fail),
             "ret" => self.assemble_operator(Bytecode::Ret),
+            "ret.d" => todo!(),
+            "ret.b" => todo!(),
             "call" => self.assemble_operator_with_label(Bytecode::Call)?,
-            "jmp" => {
-                let code = if self.check(&[Token::Dot]) {
-                    match self.next_token() {
-                        Some(Token::Word(word)) => match word.as_str() {
-                            "lt" => Bytecode::JmpLt,
-                            "gt" => Bytecode::JmpGt,
-                            "eq" => Bytecode::JmpEq,
-                            "ne" => Bytecode::JmpNe,
-                            have => Err(format!("expected (lt, gt, eq, ne), have: {have}"))?,
-                        },
-                        Some(token) => Err(format!("unexpected token: {token:?}"))?,
-                        None => unreachable!(),
-                    }
-                } else {
-                    Bytecode::Jmp
-                };
-
-                self.assemble_operator_with_label(code)?;
-            }
+            "jmp" => self.assemble_operator_with_label(Bytecode::Jmp)?,
+            "jmp.lt" => self.assemble_operator_with_label(Bytecode::JmpLt)?,
+            "jmp.gt" => self.assemble_operator_with_label(Bytecode::JmpGt)?,
+            "jmp.eq" => self.assemble_operator_with_label(Bytecode::JmpEq)?,
+            "jmp.ne" => self.assemble_operator_with_label(Bytecode::JmpNe)?,
             word => Err(format!("unknown instruction: {word}"))?,
         }
 
@@ -281,13 +272,7 @@ impl Assembler {
             .parse::<T>()
             .map_err(|_| format!("value cannot be parsed: {value}"))?;
 
-        if T::SIZE < 4 {
-            let mut buf = [0u8; 4];
-            buf[0..T::SIZE].copy_from_slice(value.to_le_bytes().as_ref());
-            self.program.extend(buf);
-        } else {
-            self.program.extend(value.to_le_bytes());
-        }
+        self.program.extend(value.to_le_bytes());
 
         Ok(())
     }
@@ -379,9 +364,7 @@ ret",
                     Token::Word("add".into()),
                     Token::Word("cmp".into()),
                     Token::Value("10".into()),
-                    Token::Word("jmp".into()),
-                    Token::Dot,
-                    Token::Word("lt".into()),
+                    Token::Word("jmp.lt".into()),
                     Token::Word("loop".into()),
                     Token::Word("ret".into()),
                     Token::Eof,
@@ -433,7 +416,7 @@ main:
     push 22
     push 33
     call add ; local0 = 22, local1 = 33
-    ; store 0
+    store 0
     ret
 
 add:
@@ -444,15 +427,16 @@ add:
         let have = Assembler::new(&src).assemble()?;
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
-            /* 0  */ 8, 0, 0, 0, 0, 0, 0, 0,
-            /* 8  */ Bytecode::Push as u8, 22, 0, 0, 0,
-            /* 13 */ Bytecode::Push as u8, 33, 0, 0, 0,
-            /* 18 */ Bytecode::Call as u8, 28, 0, 0, 0, 0, 0, 0, 0,
-            /* 27 */ Bytecode::Ret as u8,
-            /* 28 */ Bytecode::Load as u8, 0, 0, 0, 0, 0, 0, 0, 0,
-            /* 36 */ Bytecode::Load as u8, 1, 0, 0, 0, 0, 0, 0, 0,
-            /* 44 */ Bytecode::Add as u8,
-            /* 45 */ Bytecode::Ret as u8
+            8, 0, 0, 0, 0, 0, 0, 0,
+            Bytecode::Push as u8, 22, 0, 0, 0,
+            Bytecode::Push as u8, 33, 0, 0, 0,
+            Bytecode::Call as u8, 37, 0, 0, 0, 0, 0, 0, 0,
+            Bytecode::Store as u8, 0, 0, 0, 0, 0, 0, 0, 0,
+            Bytecode::Ret as u8,
+            Bytecode::Load as u8, 0, 0, 0, 0, 0, 0, 0, 0,
+            Bytecode::Load as u8, 1, 0, 0, 0, 0, 0, 0, 0,
+            Bytecode::Add as u8,
+            Bytecode::Ret as u8
         ];
         assert_eq!(want, have);
         Ok(())
