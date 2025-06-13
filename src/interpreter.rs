@@ -58,27 +58,28 @@ macro_rules! next {
 }
 
 #[derive(Clone)]
-pub struct ProgramCounter<'a> {
-    src: Cursor<&'a [u8]>,
+pub struct Program<'a> {
+    src: &'a [u8],
+    counter: Cursor<&'a [u8]>,
 }
 
-impl<'a> ProgramCounter<'a> {
+impl<'a> Program<'a> {
     pub fn new(src: &'a [u8]) -> Self {
-        let src = Cursor::new(src);
-        Self { src }
+        let counter = Cursor::new(src);
+        Self { src, counter }
     }
 
     fn set(&mut self, position: u64) {
-        self.src.set_position(position);
+        self.counter.set_position(position);
     }
 
     fn position(&self) -> u64 {
-        self.src.position()
+        self.counter.position()
     }
 
     fn next<const N: usize>(&mut self) -> Result<[u8; N]> {
         let mut buf = [0u8; N];
-        let n = self.src.read(&mut buf)?;
+        let n = self.counter.read(&mut buf)?;
         if n < N {
             assert_eq!(n, 0);
             Err(format!("read less than expected bytes: {n}"))?;
@@ -110,6 +111,10 @@ impl<'a> ProgramCounter<'a> {
 
     fn next_u64(&mut self) -> Result<u64> {
         Ok(next!(self, u64))
+    }
+
+    fn get<T: Number>(&mut self, offset: usize) -> T {
+        T::from_le_bytes(&self.src[offset..offset + T::SIZE])
     }
 }
 
@@ -173,7 +178,7 @@ impl Frame {
         }
     }
 
-    pub fn run<'a>(&mut self, pc: &mut ProgramCounter<'_>) -> Result<FrameResult> {
+    pub fn run<'a>(&mut self, pc: &mut Program<'_>) -> Result<FrameResult> {
         loop {
             match pc.next_op()? {
                 Bytecode::Push => {
@@ -229,9 +234,9 @@ impl Frame {
                 }
                 Bytecode::Get => {
                     let ptr = self.opstack.pop::<u64>();
-                    let off = pc.next_u64()?;
-                    // TODO: get the value at offset
-                    self.opstack.push(0);
+                    let offset = pc.next_u64()?;
+                    let value = pc.get::<i32>((ptr + offset) as usize);
+                    self.opstack.push(value);
                 }
                 Bytecode::Add => self.opstack.add::<i32>(),
                 Bytecode::AddD => self.opstack.add::<i64>(),
@@ -299,13 +304,13 @@ impl Frame {
 }
 
 pub struct Interpreter<'a> {
-    pc: ProgramCounter<'a>,
+    pc: Program<'a>,
     frames: Vec<Frame>,
 }
 
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
-        let mut pc = ProgramCounter::new(program);
+        let mut pc = Program::new(program);
         let entry = pc.next_u64()?;
         pc.set(entry);
         let opstack = OperandStack::default();
