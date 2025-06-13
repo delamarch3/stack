@@ -8,7 +8,7 @@ use crate::Number;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Bytecode {
     Push,
     PushD,
@@ -22,6 +22,7 @@ pub enum Bytecode {
     Store,
     StoreD,
     StoreB,
+    Get,
     Add,
     AddD,
     AddB,
@@ -226,6 +227,12 @@ impl Frame {
                     let val = self.opstack.pop();
                     self.locals.write::<i8>(i, val);
                 }
+                Bytecode::Get => {
+                    let ptr = self.opstack.pop::<u64>();
+                    let off = pc.next_u64()?;
+                    // TODO: get the value at offset
+                    self.opstack.push(0);
+                }
                 Bytecode::Add => self.opstack.add::<i32>(),
                 Bytecode::AddD => self.opstack.add::<i64>(),
                 Bytecode::AddB => self.opstack.add::<i8>(),
@@ -300,6 +307,7 @@ impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
         let mut pc = ProgramCounter::new(program);
         let entry = pc.next_u64()?;
+        pc.set(entry);
         let opstack = OperandStack::default();
         let locals = Locals::default();
         let main = Frame::new(locals, opstack, entry, ENTRY_RET);
