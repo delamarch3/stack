@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::Number;
 
 const STACK_SIZE: usize = 512;
@@ -7,22 +5,20 @@ const SLOT_SIZE: usize = std::mem::size_of::<i32>();
 pub(crate) struct OperandStack {
     stack: [u8; STACK_SIZE],
     idx: usize,
-    ptr: usize,
 }
 
 impl Default for OperandStack {
     fn default() -> Self {
         let stack = [0; STACK_SIZE];
         let idx = 0;
-        let ptr = 0;
-        Self { stack, idx, ptr }
+        Self { stack, idx }
     }
 }
 
 impl std::fmt::Display for OperandStack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let from = self.ptr.saturating_sub(i32::SIZE * 8);
-        let until = from + mem::size_of::<i32>() * 8;
+        let from = self.idx.saturating_sub(8) * SLOT_SIZE;
+        let until = (from + 8) * SLOT_SIZE;
 
         let width = 8;
         let mut sep = "";
@@ -37,9 +33,9 @@ impl std::fmt::Display for OperandStack {
         }
         write!(f, "]\n")?;
 
-        let ptr = (self.ptr / 4).min(8);
-        let width = ptr + ptr * width;
-        write!(f, "{:width$}^", "")
+        let idx = self.idx.min(8);
+        let cursor = idx + idx * width;
+        write!(f, "{:cursor$}^", "")
     }
 }
 
