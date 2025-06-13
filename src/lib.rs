@@ -7,6 +7,8 @@ pub mod stack;
 pub(crate) trait Number:
     Sized
     + Ord
+    + std::fmt::Debug
+    + std::fmt::Display
     + std::ops::Add<Output = Self>
     + std::ops::Sub<Output = Self>
     + std::ops::Mul<Output = Self>

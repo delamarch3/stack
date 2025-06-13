@@ -112,9 +112,10 @@ impl<'a> ProgramCounter<'a> {
     }
 }
 
+const SLOT_SIZE: usize = std::mem::size_of::<i32>();
 macro_rules! slot {
     ($ty:ty, $i:expr) => {{
-        let from = $i * mem::size_of::<i32>();
+        let from = $i * SLOT_SIZE;
         let to = from + mem::size_of::<$ty>();
         from..to
     }};

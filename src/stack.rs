@@ -3,16 +3,19 @@ use std::mem;
 use crate::Number;
 
 const STACK_SIZE: usize = 512;
+const SLOT_SIZE: usize = std::mem::size_of::<i32>();
 pub(crate) struct OperandStack {
     stack: [u8; STACK_SIZE],
+    idx: usize,
     ptr: usize,
 }
 
 impl Default for OperandStack {
     fn default() -> Self {
         let stack = [0; STACK_SIZE];
+        let idx = 0;
         let ptr = 0;
-        Self { stack, ptr }
+        Self { stack, idx, ptr }
     }
 }
 
@@ -42,21 +45,27 @@ impl std::fmt::Display for OperandStack {
 
 impl OperandStack {
     pub fn as_slice(&self) -> &[u8] {
-        &self.stack[..self.ptr]
+        &self.stack[..self.idx * SLOT_SIZE]
     }
 
     pub fn clear(&mut self) {
-        self.ptr = 0;
+        self.idx = 0;
     }
 
     pub fn push<T: Number>(&mut self, value: T) {
-        self.stack[self.ptr..self.ptr + T::SIZE].copy_from_slice(value.to_le_bytes().as_ref());
-        self.ptr += T::SIZE;
+        let offset = self.idx * SLOT_SIZE;
+        self.idx += T::SIZE.max(4) / 4;
+
+        if T::SIZE < 4 {
+            self.stack[offset..offset + SLOT_SIZE].copy_from_slice(&[0u8; 4]);
+        }
+        self.stack[offset..offset + T::SIZE].copy_from_slice(value.to_le_bytes().as_ref());
     }
 
     pub fn pop<T: Number>(&mut self) -> T {
-        self.ptr -= T::SIZE;
-        T::from_le_bytes(&self.stack[self.ptr..self.ptr + T::SIZE])
+        self.idx -= T::SIZE.max(4) / 4;
+        let offset = self.idx * SLOT_SIZE;
+        T::from_le_bytes(&self.stack[offset..offset + T::SIZE])
     }
 
     pub fn add<T: Number>(&mut self) {
@@ -89,7 +98,9 @@ impl OperandStack {
     }
 
     pub fn dup<T: Number>(&mut self) {
-        let value = T::from_le_bytes(&self.stack[self.ptr - T::SIZE..self.ptr]);
+        let idx = self.idx - T::SIZE.max(4) / 4;
+        let offset = idx * SLOT_SIZE;
+        let value = T::from_le_bytes(&self.stack[offset..offset + T::SIZE]);
         self.push(value);
     }
 }
