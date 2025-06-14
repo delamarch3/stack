@@ -32,7 +32,7 @@ enum Keyword {
     Word,
     Dword,
     Byte,
-    Ascii,
+    String,
 }
 
 impl<'a> TryFrom<&'a str> for Keyword {
@@ -45,7 +45,7 @@ impl<'a> TryFrom<&'a str> for Keyword {
             "word" => Ok(Keyword::Word),
             "dword" => Ok(Keyword::Dword),
             "byte" => Ok(Keyword::Byte),
-            "ascii" => Ok(Keyword::Ascii),
+            "string" => Ok(Keyword::String),
             _ => Err("not a keyword")?,
         }
     }
@@ -288,28 +288,42 @@ impl Assembler {
             Keyword::Byte => i8::SIZE,
             Keyword::Word => i32::SIZE,
             Keyword::Dword => i64::SIZE,
-            Keyword::Ascii => todo!(),
+            Keyword::String => 0,
             keyword => Err(format!("unexpected keyword: {keyword:?}"))?,
         };
 
-        self.program.extend(std::iter::repeat_n(0u8, size));
-
-        if let Some(Token::Value(Value::Number(number))) = self.peek_token() {
-            self.next_token();
-
-            if size == i8::SIZE {
-                let value = number.parse::<i8>()?;
-                self.program[offset..offset + size].copy_from_slice(&value.to_le_bytes());
-            } else if size == i32::SIZE {
-                let value = number.parse::<i32>()?;
-                self.program[offset..offset + size].copy_from_slice(&value.to_le_bytes());
-            } else if size == i64::SIZE {
-                let value = number.parse::<i64>()?;
-                self.program[offset..offset + size].copy_from_slice(&value.to_le_bytes());
-            } else {
-                unreachable!()
+        match self.peek_token() {
+            Some(Token::Value(value)) => {
+                self.next_token();
+                match value {
+                    Value::Number(number) if size == i8::SIZE => {
+                        let value = number.parse::<i8>()?;
+                        self.program.extend(&value.to_le_bytes());
+                    }
+                    Value::Number(number) if size == i32::SIZE => {
+                        let value = number.parse::<i32>()?;
+                        self.program.extend(&value.to_le_bytes());
+                    }
+                    Value::Number(number) if size == i64::SIZE => {
+                        let value = number.parse::<i64>()?;
+                        self.program.extend(&value.to_le_bytes());
+                    }
+                    Value::Char(char) if size == i8::SIZE && char.is_ascii() => {
+                        let value: u8 = char.try_into().unwrap();
+                        self.program.extend(&value.to_le_bytes());
+                    }
+                    Value::Char(char) if size == i32::SIZE => {
+                        let value: u32 = char.try_into().unwrap();
+                        self.program.extend(&value.to_le_bytes());
+                    }
+                    Value::String(string) if size == 0 => {
+                        self.program.extend(string.into_bytes());
+                    }
+                    value => Err(format!("value {value:?} does not match size {size}"))?,
+                }
             }
-        }
+            _ => self.program.extend(std::iter::repeat_n(0u8, size)),
+        };
 
         Ok(())
     }
@@ -467,8 +481,9 @@ mod test {
 .entry main
 
 .data c .byte 'a'
-.data s .ascii \"Hello, World!\"
+.data s .string \"Hello, World!\"
 .data n .word -255
+.data c2 .word '🤠'
 
 main:
 push 1
@@ -492,7 +507,7 @@ ret",
                     Token::Keyword(Keyword::Data),
                     Token::Word("s".into()),
                     Token::Dot,
-                    Token::Keyword(Keyword::Ascii),
+                    Token::Keyword(Keyword::String),
                     Token::Value(Value::String("Hello, World!".into())),
                     Token::Dot,
                     Token::Keyword(Keyword::Data),
@@ -500,6 +515,12 @@ ret",
                     Token::Dot,
                     Token::Keyword(Keyword::Word),
                     Token::Value(Value::Number("-255".into())),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Data),
+                    Token::Word("c2".into()),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Word),
+                    Token::Value(Value::Char('🤠')),
                     Token::Word("main".into()),
                     Token::Colon,
                     Token::Word("push".into()),
