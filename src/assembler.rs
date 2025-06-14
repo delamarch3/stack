@@ -9,17 +9,24 @@ use crate::Number;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Token {
+enum Value {
+    Number(String),
+    String(String),
+    Char(char),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum Token {
     Word(String),
     Keyword(Keyword),
-    Value(String),
+    Value(Value),
     Dot,
     Colon,
     Eof,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Keyword {
+enum Keyword {
     Entry,
     Data,
     Word,
@@ -44,7 +51,7 @@ impl<'a> TryFrom<&'a str> for Keyword {
     }
 }
 
-pub struct TokeniserIter<'s> {
+struct TokeniserIter<'s> {
     tokeniser: Tokeniser<'s>,
     eof: bool,
 }
@@ -76,7 +83,7 @@ impl<'a> IntoIterator for Tokeniser<'a> {
     }
 }
 
-pub struct Tokeniser<'s> {
+struct Tokeniser<'s> {
     src: Peekable<Chars<'s>>,
 }
 
@@ -88,6 +95,11 @@ impl<'s> Tokeniser<'s> {
 
     fn take_while(&mut self, f: impl Fn(char) -> bool) -> String {
         let mut s = String::new();
+        self.extend_while(&mut s, f);
+        s
+    }
+
+    fn extend_while(&mut self, s: &mut String, f: impl Fn(char) -> bool) {
         while let Some(c) = self.src.peek() {
             if f(*c) {
                 s.push(self.src.next().unwrap());
@@ -96,8 +108,6 @@ impl<'s> Tokeniser<'s> {
 
             break;
         }
-
-        s
     }
 
     fn skip_line(&mut self) {
@@ -149,7 +159,35 @@ impl<'s> Tokeniser<'s> {
                 }
                 '0'..='9' => {
                     let value = self.take_while(|c| c.is_numeric());
-                    Token::Value(value)
+                    Token::Value(Value::Number(value))
+                }
+                '-' => {
+                    let mut value = self.src.next().unwrap().to_string();
+                    self.extend_while(&mut value, |c| c.is_numeric());
+                    if value == "-" {
+                        panic!("unexpected char: -")
+                    }
+                    Token::Value(Value::Number(value))
+                }
+                '\'' => {
+                    self.src.next();
+                    let Some(value) = self.src.next() else {
+                        panic!("expected char after '")
+                    };
+                    let Some('\'') = self.src.next() else {
+                        panic!("expected closing '")
+                    };
+
+                    Token::Value(Value::Char(value))
+                }
+                '"' => {
+                    self.src.next();
+                    let value = self.take_while(|c| c != '"');
+                    let Some('"') = self.src.next() else {
+                        panic!("expected closing \"")
+                    };
+
+                    Token::Value(Value::String(value))
                 }
                 c if c.is_alphabetic() => {
                     let word = self.take_while(|c| c.is_alphanumeric() || c == '.');
@@ -256,17 +294,17 @@ impl Assembler {
 
         self.program.extend(std::iter::repeat_n(0u8, size));
 
-        if let Some(Token::Value(value)) = self.peek_token() {
+        if let Some(Token::Value(Value::Number(number))) = self.peek_token() {
             self.next_token();
 
             if size == i8::SIZE {
-                let value = value.parse::<i8>()?;
+                let value = number.parse::<i8>()?;
                 self.program[offset..offset + size].copy_from_slice(&value.to_le_bytes());
             } else if size == i32::SIZE {
-                let value = value.parse::<i32>()?;
+                let value = number.parse::<i32>()?;
                 self.program[offset..offset + size].copy_from_slice(&value.to_le_bytes());
             } else if size == i64::SIZE {
-                let value = value.parse::<i64>()?;
+                let value = number.parse::<i64>()?;
                 self.program[offset..offset + size].copy_from_slice(&value.to_le_bytes());
             } else {
                 unreachable!()
@@ -334,11 +372,11 @@ impl Assembler {
         self.assemble_operator(code);
 
         match self.peek_token() {
-            Some(Token::Value(value)) => {
+            Some(Token::Value(Value::Number(number))) => {
                 self.next_token();
-                let value = value
+                let value = number
                     .parse::<T>()
-                    .map_err(|_| format!("value cannot be parsed: {value}"))?;
+                    .map_err(|_| format!("value cannot be parsed: {number}"))?;
                 self.program.extend(value.to_le_bytes());
             }
             Some(Token::Word(_)) if T::SIZE == 8 => {
@@ -413,7 +451,7 @@ impl Assembler {
 mod test {
     use crate::interpreter::Bytecode;
 
-    use super::{Assembler, Keyword, Result, Token, Tokeniser};
+    use super::{Assembler, Keyword, Result, Token, Tokeniser, Value};
 
     #[test]
     fn test_tokeniser() {
@@ -428,6 +466,10 @@ mod test {
 ; My Program
 .entry main
 
+.data c .byte 'a'
+.data s .ascii \"Hello, World!\"
+.data n .word -255
+
 main:
 push 1
 loop:
@@ -440,17 +482,35 @@ ret",
                     Token::Dot,
                     Token::Keyword(Keyword::Entry),
                     Token::Word("main".into()),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Data),
+                    Token::Word("c".into()),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Byte),
+                    Token::Value(Value::Char('a')),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Data),
+                    Token::Word("s".into()),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Ascii),
+                    Token::Value(Value::String("Hello, World!".into())),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Data),
+                    Token::Word("n".into()),
+                    Token::Dot,
+                    Token::Keyword(Keyword::Word),
+                    Token::Value(Value::Number("-255".into())),
                     Token::Word("main".into()),
                     Token::Colon,
                     Token::Word("push".into()),
-                    Token::Value("1".into()),
+                    Token::Value(Value::Number("1".into())),
                     Token::Word("loop".into()),
                     Token::Colon,
                     Token::Word("push".into()),
-                    Token::Value("1".into()),
+                    Token::Value(Value::Number("1".into())),
                     Token::Word("add".into()),
                     Token::Word("cmp".into()),
-                    Token::Value("10".into()),
+                    Token::Value(Value::Number("10".into())),
                     Token::Word("jmp.lt".into()),
                     Token::Word("loop".into()),
                     Token::Word("ret".into()),
