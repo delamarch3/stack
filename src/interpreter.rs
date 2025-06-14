@@ -23,6 +23,8 @@ pub enum Bytecode {
     StoreD,
     StoreB,
     Get,
+    GetD,
+    GetB,
     Add,
     AddD,
     AddB,
@@ -236,6 +238,18 @@ impl Frame {
                     let ptr = self.opstack.pop::<u64>();
                     let offset = pc.next_u64()?;
                     let value = pc.get::<i32>((ptr + offset) as usize);
+                    self.opstack.push(value);
+                }
+                Bytecode::GetD => {
+                    let ptr = self.opstack.pop::<u64>();
+                    let offset = pc.next_u64()?;
+                    let value = pc.get::<i64>((ptr + offset) as usize);
+                    self.opstack.push(value);
+                }
+                Bytecode::GetB => {
+                    let ptr = self.opstack.pop::<u64>();
+                    let offset = pc.next_u64()?;
+                    let value = pc.get::<i8>((ptr + offset) as usize);
                     self.opstack.push(value);
                 }
                 Bytecode::Add => self.opstack.add::<i32>(),
