@@ -15,18 +15,18 @@ main:
 loop:
     ; break if c == 0
     load.d 0
+    dup.d
     get.b 0
     dup
     cmp 0
     jmp.eq done
 
-    ; local[2] += c
+    ; result += c
     load 2
     add
     store 2
 
     ; str += 1
-    load.d 0
     push.d 1
     add.d
     store.d 0
@@ -34,5 +34,6 @@ loop:
 
 done:
     pop
+    pop.d
     load 2
     ret
