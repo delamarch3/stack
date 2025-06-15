@@ -7,6 +7,8 @@ use crate::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+// TODO: cmp and get should take both their operands from the stack
+// TODO: support empty returns
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Bytecode {
@@ -35,6 +37,7 @@ pub enum Bytecode {
     MulD,
     Div,
     DivD,
+    CmpS,
     Cmp,
     CmpD,
     Dup,
@@ -48,6 +51,7 @@ pub enum Bytecode {
     Call,
     Fail,
     Ret,
+    RetD,
 }
 
 macro_rules! next {
@@ -94,7 +98,7 @@ impl<'a> Program<'a> {
         const N: usize = size_of::<u8>();
         let buf = self.next::<N>()?;
         let op = u8::from_le_bytes(buf);
-        assert!(op <= Bytecode::Ret as u8);
+        assert!(op <= Bytecode::RetD as u8);
         let op = unsafe { std::mem::transmute::<_, Bytecode>(op) };
         Ok(op)
     }
@@ -166,6 +170,7 @@ pub(crate) struct Frame {
 pub(crate) enum FrameResult {
     Call(Frame),
     Ret,
+    RetD,
     Fail,
 }
 
@@ -261,6 +266,10 @@ impl Frame {
                 Bytecode::MulD => self.opstack.mul::<i64>(),
                 Bytecode::Div => self.opstack.div::<i32>(),
                 Bytecode::DivD => self.opstack.div::<i64>(),
+                Bytecode::CmpS => {
+                    let lhs = self.opstack.pop::<i32>();
+                    self.opstack.cmp(lhs);
+                }
                 Bytecode::Cmp => {
                     let lhs = pc.next_i32()?;
                     self.opstack.cmp(lhs);
@@ -311,6 +320,7 @@ impl Frame {
                 }
                 Bytecode::Fail => break Ok(FrameResult::Fail),
                 Bytecode::Ret => break Ok(FrameResult::Ret),
+                Bytecode::RetD => break Ok(FrameResult::RetD),
             }
         }
     }
@@ -323,14 +333,13 @@ pub struct Interpreter<'a> {
 
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
-        const MAIN_RET: usize = 0;
-
         let mut pc = Program::new(program);
         let entry = pc.next_u64()?;
         pc.set(entry);
         let opstack = OperandStack::default();
         let locals = Locals::default();
-        let main = Frame::new(locals, opstack, entry, MAIN_RET);
+        let ret = 0;
+        let main = Frame::new(locals, opstack, entry, ret);
         let frames = vec![main];
 
         Ok(Self { pc, frames })
@@ -343,7 +352,7 @@ impl<'a> Interpreter<'a> {
     pub fn run(&mut self) -> Result<()> {
         while let Some(mut current) = self.frames.pop() {
             let len = self.frames.len();
-            let main = len == 0;
+            let is_entry = len == 0;
 
             match current.run(&mut self.pc)? {
                 FrameResult::Call(next) => {
@@ -351,16 +360,21 @@ impl<'a> Interpreter<'a> {
                     self.frames.push(current);
                     self.frames.push(next);
                 }
-                FrameResult::Ret if main => {
+                FrameResult::Ret if is_entry => {
                     self.frames.push(current);
                     break;
                 }
                 FrameResult::Ret => {
                     self.pc.set(current.ret as u64);
-                    // TODO: should functions return values by popping onto caller frame?
                     self.frames[len - 1]
                         .opstack
                         .push::<i32>(current.opstack.pop());
+                }
+                FrameResult::RetD => {
+                    self.pc.set(current.ret as u64);
+                    self.frames[len - 1]
+                        .opstack
+                        .push::<i64>(current.opstack.pop());
                 }
                 FrameResult::Fail => Err("FAILED")?,
             }

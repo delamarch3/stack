@@ -204,7 +204,7 @@ impl<'s> Tokeniser<'s> {
                     Token::Value(Value::String(value))
                 }
                 c if c.is_alphabetic() => {
-                    let word = self.take_while(|c| c.is_alphanumeric() || c == '.');
+                    let word = self.take_while(|c| c.is_alphanumeric() || ['.', '_'].contains(&c));
                     if let Ok(keyword) = word.as_str().try_into() {
                         Token::Keyword(keyword)
                     } else {
@@ -381,14 +381,14 @@ impl Assembler {
             "mul.d" => self.assemble_operator(Bytecode::MulD),
             "div" => self.assemble_operator(Bytecode::Div),
             "div.d" => self.assemble_operator(Bytecode::DivD),
+            "cmps" => self.assemble_operator(Bytecode::CmpS),
             "cmp" => self.assemble_operator_with_operand::<i32>(Bytecode::Cmp)?,
             "cmp.d" => self.assemble_operator_with_operand::<i64>(Bytecode::CmpD)?,
             "dup" => self.assemble_operator(Bytecode::Dup),
             "dup.d" => self.assemble_operator(Bytecode::DupD),
             "fail" => self.assemble_operator(Bytecode::Fail),
             "ret" => self.assemble_operator(Bytecode::Ret),
-            "ret.d" => todo!(),
-            "ret.b" => todo!(),
+            "ret.d" => self.assemble_operator(Bytecode::RetD),
             "call" => self.assemble_operator_with_label(Bytecode::Call)?,
             "jmp" => self.assemble_operator_with_label(Bytecode::Jmp)?,
             "jmp.lt" => self.assemble_operator_with_label(Bytecode::JmpLt)?,
