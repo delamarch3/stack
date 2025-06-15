@@ -7,7 +7,8 @@ main:
 
 fib:
     load 0
-    cmp 2
+    push 2
+    cmp
     jmp.lt base
 
     load 0

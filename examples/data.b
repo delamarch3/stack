@@ -15,7 +15,8 @@ loop:
     dup.d
     get.b 0
     dup
-    cmp 0
+    push 0
+    cmp
     jmp.eq done
 
     ; result += c

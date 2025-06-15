@@ -7,7 +7,6 @@ use crate::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-// TODO: cmp and get should take both their operands from the stack
 // TODO: support empty returns
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -37,7 +36,6 @@ pub enum Bytecode {
     MulD,
     Div,
     DivD,
-    CmpS,
     Cmp,
     CmpD,
     Dup,
@@ -266,18 +264,8 @@ impl Frame {
                 Bytecode::MulD => self.opstack.mul::<i64>(),
                 Bytecode::Div => self.opstack.div::<i32>(),
                 Bytecode::DivD => self.opstack.div::<i64>(),
-                Bytecode::CmpS => {
-                    let lhs = self.opstack.pop::<i32>();
-                    self.opstack.cmp(lhs);
-                }
-                Bytecode::Cmp => {
-                    let lhs = pc.next_i32()?;
-                    self.opstack.cmp(lhs);
-                }
-                Bytecode::CmpD => {
-                    let lhs = pc.next_i64()?;
-                    self.opstack.cmp(lhs);
-                }
+                Bytecode::Cmp => self.opstack.cmp::<i32>(),
+                Bytecode::CmpD => self.opstack.cmp::<i64>(),
                 Bytecode::Jmp => {
                     let pos = pc.next_u64()?;
                     pc.set(pos as u64);

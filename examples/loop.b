@@ -8,7 +8,8 @@ loop:
     push 1
     sub
     dup
-    cmp 1
+    push 1
+    cmp
     jmp.eq done
     jmp loop
 done:

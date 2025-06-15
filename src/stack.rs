@@ -89,7 +89,8 @@ impl OperandStack {
         self.push(value);
     }
 
-    pub fn cmp<T: Number>(&mut self, lhs: T) {
+    pub fn cmp<T: Number>(&mut self) {
+        let lhs = self.pop::<T>();
         let rhs = self.pop::<T>();
         self.push(rhs.cmp(&lhs) as i32);
     }
