@@ -64,7 +64,7 @@ impl<'a> Program<'a> {
         Self { src, counter }
     }
 
-    fn set(&mut self, position: u64) {
+    fn set_position(&mut self, position: u64) {
         self.counter.set_position(position);
     }
 
@@ -248,7 +248,7 @@ impl Frame {
         };
 
         if jmp {
-            pc.set(pos);
+            pc.set_position(pos);
         }
 
         Ok(())
@@ -275,7 +275,7 @@ impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
         let mut pc = Program::new(program);
         let entry = pc.next::<u64>()?;
-        pc.set(entry);
+        pc.set_position(entry);
         let opstack = OperandStack::default();
         let locals = Locals::default();
         let ret = 0;
@@ -297,7 +297,7 @@ impl<'a> Interpreter<'a> {
             // TODO: better error reporting
             match current.run(&mut self.pc)? {
                 FrameResult::Call(next) => {
-                    self.pc.set(next.entry as u64);
+                    self.pc.set_position(next.entry as u64);
                     self.frames.push(current);
                     self.frames.push(next);
                 }
@@ -306,16 +306,16 @@ impl<'a> Interpreter<'a> {
                     break;
                 }
                 FrameResult::Ret => {
-                    self.pc.set(current.ret as u64);
+                    self.pc.set_position(current.ret as u64);
                 }
                 FrameResult::RetW => {
-                    self.pc.set(current.ret as u64);
+                    self.pc.set_position(current.ret as u64);
                     self.frames[len - 1]
                         .opstack
                         .push::<i32>(current.opstack.pop());
                 }
                 FrameResult::RetD => {
-                    self.pc.set(current.ret as u64);
+                    self.pc.set_position(current.ret as u64);
                     self.frames[len - 1]
                         .opstack
                         .push::<i64>(current.opstack.pop());
