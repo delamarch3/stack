@@ -70,33 +70,32 @@ impl OperandStack {
     }
 
     pub fn add<T: Number>(&mut self) {
-        let (a, b) = (self.pop::<T>(), self.pop::<T>());
+        let (b, a) = (self.pop::<T>(), self.pop::<T>());
         let value = a + b;
         self.push(value);
     }
 
     pub fn sub<T: Number>(&mut self) {
-        let (a, b) = (self.pop::<T>(), self.pop::<T>());
-        let value = b - a;
+        let (b, a) = (self.pop::<T>(), self.pop::<T>());
+        let value = a - b;
         self.push(value);
     }
 
     pub fn mul<T: Number>(&mut self) {
-        let (a, b) = (self.pop::<T>(), self.pop::<T>());
+        let (b, a) = (self.pop::<T>(), self.pop::<T>());
         let value = a * b;
         self.push(value);
     }
 
     pub fn div<T: Number>(&mut self) {
-        let (a, b) = (self.pop::<T>(), self.pop::<T>());
-        let value = b / a;
+        let (b, a) = (self.pop::<T>(), self.pop::<T>());
+        let value = a / b;
         self.push(value);
     }
 
     pub fn cmp<T: Number>(&mut self) {
-        let lhs = self.pop::<T>();
-        let rhs = self.pop::<T>();
-        self.push(rhs.cmp(&lhs) as i32);
+        let (b, a) = (self.pop::<T>(), self.pop::<T>());
+        self.push(a.cmp(&b) as i32);
     }
 
     pub fn dup<T: Number>(&mut self) {
