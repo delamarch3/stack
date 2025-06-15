@@ -13,7 +13,8 @@ loop:
     ; break if c == 0
     load.d 0
     dup.d
-    get.b 0
+    push.d 0
+    get.b
     dup
     push 0
     cmp

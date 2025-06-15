@@ -238,20 +238,20 @@ impl Frame {
                     self.locals.write::<i8>(i, val);
                 }
                 Bytecode::Get => {
+                    let offset = self.opstack.pop::<u64>();
                     let ptr = self.opstack.pop::<u64>();
-                    let offset = pc.next_u64()?;
                     let value = pc.get::<i32>((ptr + offset) as usize);
                     self.opstack.push(value);
                 }
                 Bytecode::GetD => {
+                    let offset = self.opstack.pop::<u64>();
                     let ptr = self.opstack.pop::<u64>();
-                    let offset = pc.next_u64()?;
                     let value = pc.get::<i64>((ptr + offset) as usize);
                     self.opstack.push(value);
                 }
                 Bytecode::GetB => {
+                    let offset = self.opstack.pop::<u64>();
                     let ptr = self.opstack.pop::<u64>();
-                    let offset = pc.next_u64()?;
                     let value = pc.get::<i8>((ptr + offset) as usize);
                     self.opstack.push(value);
                 }
@@ -344,6 +344,7 @@ impl<'a> Interpreter<'a> {
             let len = self.frames.len();
             let is_entry = len == 0;
 
+            // TODO: better error reporting
             match current.run(&mut self.pc)? {
                 FrameResult::Call(next) => {
                     self.pc.set(next.entry as u64);

@@ -368,9 +368,9 @@ impl Assembler {
             "store" | "store.w" => self.assemble_operator_with_operand::<u64>(Bytecode::Store)?,
             "store.d" => self.assemble_operator_with_operand::<u64>(Bytecode::StoreD)?,
             "store.b" => self.assemble_operator_with_operand::<u64>(Bytecode::StoreB)?,
-            "get" | "get.w" => self.assemble_operator_with_operand::<u64>(Bytecode::Get)?,
-            "get.d" => self.assemble_operator_with_operand::<u64>(Bytecode::GetD)?,
-            "get.b" => self.assemble_operator_with_operand::<u64>(Bytecode::GetB)?,
+            "get" | "get.w" => self.assemble_operator(Bytecode::Get),
+            "get.d" => self.assemble_operator(Bytecode::GetD),
+            "get.b" => self.assemble_operator(Bytecode::GetB),
             "add" | "add.w" => self.assemble_operator(Bytecode::Add),
             "add.d" => self.assemble_operator(Bytecode::AddD),
             "add.b" => self.assemble_operator(Bytecode::AddB),
@@ -402,7 +402,7 @@ impl Assembler {
     }
 
     fn assemble_operator(&mut self, code: Bytecode) {
-        self.program.extend((code as u8).to_le_bytes());
+        self.program.extend(std::iter::once(code as u8));
     }
 
     fn assemble_operator_with_operand<T>(&mut self, code: Bytecode) -> Result<()>
@@ -586,18 +586,20 @@ push 1
 loop:
 push 1
 add
-cmp 10
+push 10
+cmp
 jmp.lt loop
 ret";
         let have = Assembler::new(&src).assemble()?;
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             13, 0, 0, 0, 0, 0, 0, 0,
-            Bytecode::Push as u8,  1, 0, 0, 0,
-            Bytecode::Push as u8,  1, 0, 0, 0, // main:
-            Bytecode::Push as u8,  1, 0, 0, 0, // loop:
+            Bytecode::Push as u8, 1, 0, 0, 0,
+            Bytecode::Push as u8, 1, 0, 0, 0, // main:
+            Bytecode::Push as u8, 1, 0, 0, 0, // loop:
             Bytecode::Add as u8,
-            Bytecode::Cmp as u8,   10, 0, 0, 0,
+            Bytecode::Push as u8, 10, 0, 0, 0,
+            Bytecode::Cmp as u8,
             Bytecode::JmpLt as u8, 18, 0, 0, 0, 0, 0, 0, 0, // jmp loop
             Bytecode::Ret as u8
         ];

@@ -8,11 +8,15 @@
 
 main:
     push.d record
-    get.b 0 ; 1
+    push.d 0
+    get.b         ; 1
     push.d record
-    get.b 5 ; H
+    push.d 5
+    get.b         ; H
     push.d record
-    get 18  ; 0
+    push.d 18
+    get           ; 0
     push.d record
-    get 22  ; 5
+    push.d 22
+    get           ; 5
     ret
