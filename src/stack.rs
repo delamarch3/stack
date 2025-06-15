@@ -65,6 +65,10 @@ impl OperandStack {
         T::from_le_bytes(&self.stack[offset..offset + T::SIZE])
     }
 
+    pub fn drop<T: Number>(&mut self) {
+        self.pop::<T>();
+    }
+
     pub fn add<T: Number>(&mut self) {
         let (a, b) = (self.pop::<T>(), self.pop::<T>());
         let value = a + b;
