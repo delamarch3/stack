@@ -52,6 +52,15 @@ impl<'a> TryFrom<&'a str> for Keyword {
     }
 }
 
+impl Keyword {
+    fn is_data_type(&self) -> bool {
+        match self {
+            Keyword::Word | Keyword::Dword | Keyword::Byte | Keyword::String => true,
+            Keyword::Entry | Keyword::Data => false,
+        }
+    }
+}
+
 struct TokeniserIter<'s> {
     tokeniser: Tokeniser<'s>,
     eof: bool,
@@ -287,51 +296,59 @@ impl Assembler {
             Err(format!("label is declared twice: {name}"))?;
         }
 
-        // TODO: parse records
-        self.expect(&[Token::Dot])?;
-        let size = match self.next_keyword()? {
-            Keyword::Byte => i8::SIZE,
-            Keyword::Word => i32::SIZE,
-            Keyword::Dword => i64::SIZE,
-            Keyword::String => 0,
-            keyword => Err(format!("unexpected keyword: {keyword:?}"))?,
-        };
-
         while {
-            match self.peek_token() {
-                Some(Token::Value(value)) => {
-                    self.next_token();
-                    match value {
-                        Value::Number(number) if size == i8::SIZE => {
-                            let value = number.parse::<i8>()?;
-                            self.program.extend(&value.to_le_bytes());
-                        }
-                        Value::Number(number) if size == i32::SIZE => {
-                            let value = number.parse::<i32>()?;
-                            self.program.extend(&value.to_le_bytes());
-                        }
-                        Value::Number(number) if size == i64::SIZE => {
-                            let value = number.parse::<i64>()?;
-                            self.program.extend(&value.to_le_bytes());
-                        }
-                        Value::Char(char) if size == i8::SIZE && char.is_ascii() => {
-                            let value: u8 = char.try_into().unwrap();
-                            self.program.extend(&value.to_le_bytes());
-                        }
-                        Value::Char(char) if size == i32::SIZE => {
-                            let value: u32 = char.try_into().unwrap();
-                            self.program.extend(&value.to_le_bytes());
-                        }
-                        Value::String(string) if size == 0 => {
-                            self.program.extend(string.into_bytes());
-                        }
-                        value => Err(format!("value {value:?} does not match size {size}"))?,
-                    }
-                }
-                _ => self.program.extend(std::iter::repeat_n(0u8, size)),
+            self.expect(&[Token::Dot])?;
+            let size = match self.next_keyword()? {
+                Keyword::Byte => i8::SIZE,
+                Keyword::Word => i32::SIZE,
+                Keyword::Dword => i64::SIZE,
+                Keyword::String => 0,
+                keyword => Err(format!("unexpected keyword: {keyword:?}"))?,
             };
 
-            self.check(&[Token::Comma])
+            while {
+                match self.peek_token() {
+                    Some(Token::Value(value)) => {
+                        self.next_token();
+                        match value {
+                            Value::Number(number) if size == i8::SIZE => {
+                                let value = number.parse::<i8>()?;
+                                self.program.extend(&value.to_le_bytes());
+                            }
+                            Value::Number(number) if size == i32::SIZE => {
+                                let value = number.parse::<i32>()?;
+                                self.program.extend(&value.to_le_bytes());
+                            }
+                            Value::Number(number) if size == i64::SIZE => {
+                                let value = number.parse::<i64>()?;
+                                self.program.extend(&value.to_le_bytes());
+                            }
+                            Value::Char(char) if size == i8::SIZE && char.is_ascii() => {
+                                let value: u8 = char.try_into().unwrap();
+                                self.program.extend(&value.to_le_bytes());
+                            }
+                            Value::Char(char) if size == i32::SIZE => {
+                                let value: u32 = char.try_into().unwrap();
+                                self.program.extend(&value.to_le_bytes());
+                            }
+                            Value::String(string) if size == 0 => {
+                                self.program.extend(string.into_bytes());
+                            }
+                            value => Err(format!("value {value:?} does not match size {size}"))?,
+                        }
+                    }
+                    _ => self.program.extend(std::iter::repeat_n(0u8, size)),
+                };
+
+                self.check(&[Token::Comma])
+            } {}
+
+            self.peek_n_token(1)
+                .map(|token| match token {
+                    Token::Keyword(keyword) => keyword.is_data_type(),
+                    _ => false,
+                })
+                .unwrap_or_default()
         } {}
 
         Ok(())
@@ -456,9 +473,13 @@ impl Assembler {
         Some(token)
     }
 
-    fn peek_token(&mut self) -> Option<Token> {
-        let token = self.tokens.get(self.position).cloned()?;
-        Some(token)
+    fn peek_n_token(&self, n: usize) -> Option<Token> {
+        let position = self.position + n;
+        self.tokens.get(position).cloned()
+    }
+
+    fn peek_token(&self) -> Option<Token> {
+        self.peek_n_token(0)
     }
 
     fn next_keyword(&mut self) -> Result<Keyword> {

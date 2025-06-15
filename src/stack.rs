@@ -33,9 +33,10 @@ impl std::fmt::Display for OperandStack {
         }
         write!(f, "]\n")?;
 
-        let idx = self.idx.min(8);
-        let cursor = idx + idx * width;
-        write!(f, "{:cursor$}^", "")
+        let idx = self.idx;
+        let min_idx = self.idx.min(8);
+        let cursor = min_idx + min_idx * width;
+        write!(f, "{:cursor$}^{idx}", "")
     }
 }
 
