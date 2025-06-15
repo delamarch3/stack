@@ -156,7 +156,6 @@ impl Locals {
     }
 }
 
-const ENTRY_RET: usize = 0;
 pub(crate) struct Frame {
     opstack: OperandStack,
     locals: Locals,
@@ -324,12 +323,14 @@ pub struct Interpreter<'a> {
 
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
+        const MAIN_RET: usize = 0;
+
         let mut pc = Program::new(program);
         let entry = pc.next_u64()?;
         pc.set(entry);
         let opstack = OperandStack::default();
         let locals = Locals::default();
-        let main = Frame::new(locals, opstack, entry, ENTRY_RET);
+        let main = Frame::new(locals, opstack, entry, MAIN_RET);
         let frames = vec![main];
 
         Ok(Self { pc, frames })
