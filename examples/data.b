@@ -1,8 +1,5 @@
 .entry main
 
-.data ptr .dword
-.data input .word 9
-
 .data str .string "abc"
 .data end .byte 0
 
