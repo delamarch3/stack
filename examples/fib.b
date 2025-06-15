@@ -26,8 +26,8 @@ fib:
     load 1
     load 2
     add
-    ret
+    ret.w
 
 base:
     load 0
-    ret
+    ret.w

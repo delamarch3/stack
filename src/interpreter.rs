@@ -7,7 +7,6 @@ use crate::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-// TODO: support empty returns
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Bytecode {
@@ -49,6 +48,7 @@ pub enum Bytecode {
     Call,
     Fail,
     Ret,
+    RetW,
     RetD,
 }
 
@@ -168,6 +168,7 @@ pub(crate) struct Frame {
 pub(crate) enum FrameResult {
     Call(Frame),
     Ret,
+    RetW,
     RetD,
     Fail,
 }
@@ -308,6 +309,7 @@ impl Frame {
                 }
                 Bytecode::Fail => break Ok(FrameResult::Fail),
                 Bytecode::Ret => break Ok(FrameResult::Ret),
+                Bytecode::RetW => break Ok(FrameResult::RetW),
                 Bytecode::RetD => break Ok(FrameResult::RetD),
             }
         }
@@ -348,11 +350,14 @@ impl<'a> Interpreter<'a> {
                     self.frames.push(current);
                     self.frames.push(next);
                 }
-                FrameResult::Ret if is_entry => {
+                FrameResult::Ret | FrameResult::RetW | FrameResult::RetD if is_entry => {
                     self.frames.push(current);
                     break;
                 }
                 FrameResult::Ret => {
+                    self.pc.set(current.ret as u64);
+                }
+                FrameResult::RetW => {
                     self.pc.set(current.ret as u64);
                     self.frames[len - 1]
                         .opstack

@@ -30,4 +30,4 @@ gcd_gt:
     jmp gcd
 gcd_done:
     load 0
-    ret
+    ret.w
