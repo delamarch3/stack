@@ -52,15 +52,6 @@ pub enum Bytecode {
     RetD,
 }
 
-macro_rules! next {
-    ($pc:expr, $ty:ty) => {{
-        const N: usize = size_of::<$ty>();
-        let buf = $pc.next::<N>()?;
-        let val = <$ty>::from_le_bytes(buf);
-        val
-    }};
-}
-
 #[derive(Clone)]
 pub struct Program<'a> {
     src: &'a [u8],
@@ -81,40 +72,21 @@ impl<'a> Program<'a> {
         self.counter.position()
     }
 
-    fn next<const N: usize>(&mut self) -> Result<[u8; N]> {
-        let mut buf = [0u8; N];
-        let n = self.counter.read(&mut buf)?;
-        if n < N {
-            assert_eq!(n, 0);
+    fn next<T: Number>(&mut self) -> Result<T> {
+        let mut buf = [0u8; 8];
+        let n = self.counter.read(&mut buf[0..T::SIZE])?;
+        if n < T::SIZE {
             Err(format!("read less than expected bytes: {n}"))?;
         }
 
-        Ok(buf)
+        Ok(T::from_le_bytes(&buf[0..T::SIZE]))
     }
 
     fn next_op(&mut self) -> Result<Bytecode> {
-        const N: usize = size_of::<u8>();
-        let buf = self.next::<N>()?;
-        let op = u8::from_le_bytes(buf);
+        let op = self.next::<u8>()?;
         assert!(op <= Bytecode::RetD as u8);
         let op = unsafe { std::mem::transmute::<_, Bytecode>(op) };
         Ok(op)
-    }
-
-    fn next_i8(&mut self) -> Result<i8> {
-        Ok(next!(self, i8))
-    }
-
-    fn next_i32(&mut self) -> Result<i32> {
-        Ok(next!(self, i32))
-    }
-
-    fn next_i64(&mut self) -> Result<i64> {
-        Ok(next!(self, i64))
-    }
-
-    fn next_u64(&mut self) -> Result<u64> {
-        Ok(next!(self, u64))
     }
 
     fn get<T: Number>(&mut self, offset: usize) -> T {
@@ -187,15 +159,15 @@ impl Frame {
         loop {
             match pc.next_op()? {
                 Bytecode::Push => {
-                    let val = pc.next_i32()?;
+                    let val = pc.next::<i32>()?;
                     self.opstack.push(val);
                 }
                 Bytecode::PushD => {
-                    let val = pc.next_i64()?;
+                    let val = pc.next::<i64>()?;
                     self.opstack.push(val);
                 }
                 Bytecode::PushB => {
-                    let val = pc.next_i8()?;
+                    let val = pc.next::<i8>()?;
                     self.opstack.push(val);
                 }
                 Bytecode::Pop => {
@@ -208,32 +180,32 @@ impl Frame {
                     self.opstack.pop::<i8>();
                 }
                 Bytecode::Load => {
-                    let i = pc.next_u64()?;
+                    let i = pc.next::<u64>()?;
                     let val = self.locals.read::<i32>(i);
                     self.opstack.push(val);
                 }
                 Bytecode::LoadD => {
-                    let i = pc.next_u64()?;
+                    let i = pc.next::<u64>()?;
                     let val = self.locals.read::<i64>(i);
                     self.opstack.push(val);
                 }
                 Bytecode::LoadB => {
-                    let i = pc.next_u64()?;
+                    let i = pc.next::<u64>()?;
                     let val = self.locals.read::<i8>(i);
                     self.opstack.push(val);
                 }
                 Bytecode::Store => {
-                    let i = pc.next_u64()?;
+                    let i = pc.next::<u64>()?;
                     let val = self.opstack.pop();
                     self.locals.write::<i32>(i, val);
                 }
                 Bytecode::StoreD => {
-                    let i = pc.next_u64()?;
+                    let i = pc.next::<u64>()?;
                     let val = self.opstack.pop();
                     self.locals.write::<i64>(i, val);
                 }
                 Bytecode::StoreB => {
-                    let i = pc.next_u64()?;
+                    let i = pc.next::<u64>()?;
                     let val = self.opstack.pop();
                     self.locals.write::<i8>(i, val);
                 }
@@ -268,29 +240,29 @@ impl Frame {
                 Bytecode::Cmp => self.opstack.cmp::<i32>(),
                 Bytecode::CmpD => self.opstack.cmp::<i64>(),
                 Bytecode::Jmp => {
-                    let pos = pc.next_u64()?;
+                    let pos = pc.next::<u64>()?;
                     pc.set(pos as u64);
                 }
                 Bytecode::JmpEq => {
-                    let pos = pc.next_u64()?;
+                    let pos = pc.next::<u64>()?;
                     if self.opstack.pop::<i32>() == Ordering::Equal as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpNe => {
-                    let pos = pc.next_u64()?;
+                    let pos = pc.next::<u64>()?;
                     if self.opstack.pop::<i32>() != Ordering::Equal as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpLt => {
-                    let pos = pc.next_u64()?;
+                    let pos = pc.next::<u64>()?;
                     if self.opstack.pop::<i32>() == Ordering::Less as i32 {
                         pc.set(pos as u64);
                     }
                 }
                 Bytecode::JmpGt => {
-                    let pos = pc.next_u64()?;
+                    let pos = pc.next::<u64>()?;
                     if self.opstack.pop::<i32>() == Ordering::Greater as i32 {
                         pc.set(pos as u64);
                     }
@@ -301,7 +273,7 @@ impl Frame {
                     let mut locals = Locals::default();
                     locals.copy_from_slice(self.opstack.as_slice());
                     self.opstack.clear();
-                    let entry = pc.next_u64()?;
+                    let entry = pc.next::<u64>()?;
                     let ret = pc.position() as usize;
                     let opstack = OperandStack::default();
                     let frame = Frame::new(locals, opstack, entry, ret);
@@ -324,7 +296,7 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a [u8]) -> Result<Self> {
         let mut pc = Program::new(program);
-        let entry = pc.next_u64()?;
+        let entry = pc.next::<u64>()?;
         pc.set(entry);
         let opstack = OperandStack::default();
         let locals = Locals::default();

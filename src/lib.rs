@@ -49,4 +49,4 @@ macro_rules! impl_number {
     };
 }
 
-impl_number!(i8, i16, i32, i64, u64);
+impl_number!(u8, i8, i16, i32, i64, u64);
