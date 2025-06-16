@@ -3,7 +3,7 @@ use std::iter::Peekable;
 use std::mem;
 use std::str::{Chars, FromStr};
 
-use crate::interpreter::Bytecode;
+use crate::program::Bytecode;
 use crate::Number;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -66,7 +66,7 @@ struct TokeniserIter<'s> {
     eof: bool,
 }
 
-impl<'s> Iterator for TokeniserIter<'s> {
+impl Iterator for TokeniserIter<'_> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -328,7 +328,7 @@ impl Assembler {
                                 self.program.extend(&value.to_le_bytes());
                             }
                             Value::Char(char) if size == i32::SIZE => {
-                                let value: u32 = char.try_into().unwrap();
+                                let value = char as u32;
                                 self.program.extend(&value.to_le_bytes());
                             }
                             Value::String(string) if size == 0 => {
@@ -493,7 +493,7 @@ impl Assembler {
 
 #[cfg(test)]
 mod test {
-    use crate::interpreter::Bytecode;
+    use crate::program::Bytecode;
 
     use super::{Assembler, Keyword, Result, Token, Tokeniser, Value};
 

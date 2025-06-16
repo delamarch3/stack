@@ -1,7 +1,13 @@
 pub mod assembler;
-pub mod expr;
+#[allow(unused)]
+mod expr;
+mod frame;
 pub mod interpreter;
-pub mod stack;
+mod locals;
+mod program;
+mod stack;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[allow(dead_code)]
 pub(crate) trait Number:

@@ -27,7 +27,7 @@ fn main() -> Result<()> {
         .write(true)
         .truncate(true)
         .open(OUTPUT_FILE)?
-        .write(&program)?;
+        .write_all(&program)?;
 
     Ok(())
 }

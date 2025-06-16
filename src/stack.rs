@@ -3,13 +3,13 @@ use crate::Number;
 const STACK_SIZE: usize = 512;
 const SLOT_SIZE: usize = std::mem::size_of::<i32>();
 pub(crate) struct OperandStack {
-    stack: [u8; STACK_SIZE],
+    stack: Box<[u8; STACK_SIZE]>,
     idx: usize,
 }
 
 impl Default for OperandStack {
     fn default() -> Self {
-        let stack = [0; STACK_SIZE];
+        let stack = Box::new([0; STACK_SIZE]);
         let idx = 0;
         Self { stack, idx }
     }
@@ -24,14 +24,14 @@ impl std::fmt::Display for OperandStack {
         let mut sep = "";
         let mut slice = &self.stack[from..until];
         write!(f, "[")?;
-        while slice.len() > 0 {
+        while !slice.is_empty() {
             let n = i32::from_le_bytes(slice[..i32::SIZE].try_into().unwrap());
             slice = &slice[i32::SIZE..];
             write!(f, "{sep}")?;
             write!(f, "{n:width$}")?;
             sep = ",";
         }
-        write!(f, "]\n")?;
+        writeln!(f, "]")?;
 
         let idx = self.idx;
         let min_idx = self.idx.min(8);
