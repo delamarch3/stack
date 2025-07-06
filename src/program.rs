@@ -69,6 +69,9 @@ impl<'a> Program<'a> {
     pub fn next<T: Number>(&mut self) -> Result<T> {
         let mut buf = [0u8; 8];
         let n = self.counter.read(&mut buf[0..T::SIZE])?;
+        if n == 0 {
+            Err(format!("unexpected end of program"))?;
+        }
         if n < T::SIZE {
             Err(format!("read less than expected bytes: {n}"))?;
         }

@@ -4,6 +4,7 @@ mod expr;
 mod frame;
 pub mod interpreter;
 mod locals;
+pub mod out;
 mod program;
 mod stack;
 
