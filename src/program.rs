@@ -48,14 +48,13 @@ pub enum Bytecode {
 
 #[derive(Clone)]
 pub struct Program<'a> {
-    src: &'a [u8],
     counter: Cursor<&'a [u8]>,
 }
 
 impl<'a> Program<'a> {
     pub fn new(src: &'a [u8]) -> Self {
         let counter = Cursor::new(src);
-        Self { src, counter }
+        Self { counter }
     }
 
     pub fn set_position(&mut self, position: u64) {
@@ -87,6 +86,6 @@ impl<'a> Program<'a> {
     }
 
     pub fn get<T: Number>(&mut self, offset: usize) -> T {
-        T::from_le_bytes(&self.src[offset..offset + T::SIZE])
+        T::from_le_bytes(&self.counter.get_ref()[offset..offset + T::SIZE])
     }
 }
