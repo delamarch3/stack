@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::mem;
 
+use crate::output::Output;
 use crate::program::Bytecode;
 use crate::tokeniser::{Keyword, Token, Tokeniser, Value};
 use crate::{Number, Result};
@@ -26,23 +27,6 @@ impl Label {
     fn text(offset: usize) -> Self {
         let section = Section::Text;
         Self { section, offset }
-    }
-}
-
-pub struct Output {
-    entry: usize,
-    data: Vec<u8>,
-    text: Vec<u8>,
-}
-
-impl From<Output> for Vec<u8> {
-    fn from(output: Output) -> Self {
-        let mut program =
-            Vec::with_capacity(size_of::<usize>() + output.data.len() + output.text.len());
-        program.extend(output.entry.to_le_bytes());
-        program.extend(output.data);
-        program.extend(output.text);
-        program
     }
 }
 
@@ -103,11 +87,7 @@ impl Assembler {
             self.text[*i..*i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
         }
 
-        let out = Output {
-            entry: entry_offset,
-            data: self.data,
-            text: self.text,
-        };
+        let out = Output::new(entry_offset as u64, self.data, self.text);
 
         Ok(out.into())
     }

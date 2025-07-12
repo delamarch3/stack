@@ -4,7 +4,7 @@ mod expr;
 mod frame;
 pub mod interpreter;
 mod locals;
-pub mod out;
+pub mod output;
 mod program;
 mod stack;
 mod tokeniser;

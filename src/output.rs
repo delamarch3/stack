@@ -3,19 +3,18 @@ use std::{io::Read, mem};
 use crate::program::{Bytecode, Program};
 use crate::{Number, Result};
 
-pub struct Out {
-    entry: u64,
-
+pub struct Output {
     // TODO
-    // data: Vec<u8>,
     // labels: HashMap<u64, String>,
+    entry: u64,
+    data: Vec<u8>,
     text: Vec<u8>,
 }
 
 // TODO: Interpreter takes Out
 // TODO: Debugger - use Out.fmt and map position to line?
 
-impl std::fmt::Display for Out {
+impl std::fmt::Display for Output {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const TAB_SPACES: usize = 4;
 
@@ -84,7 +83,22 @@ impl std::fmt::Display for Out {
     }
 }
 
-impl Out {
+impl From<Output> for Vec<u8> {
+    fn from(output: Output) -> Self {
+        let mut program =
+            Vec::with_capacity(size_of::<usize>() + output.data.len() + output.text.len());
+        program.extend(output.entry.to_le_bytes());
+        program.extend(output.data);
+        program.extend(output.text);
+        program
+    }
+}
+
+impl Output {
+    pub fn new(entry: u64, data: Vec<u8>, text: Vec<u8>) -> Self {
+        Self { entry, data, text }
+    }
+
     pub fn from_reader<R: Read>(mut r: R) -> Result<Self> {
         let mut entry_buf = [0u8; mem::size_of::<u64>()];
         let n = r.read(&mut entry_buf)?;
@@ -93,10 +107,13 @@ impl Out {
         }
         let entry = u64::from_le_bytes(entry_buf);
 
+        // TODO
+        let data = Vec::new();
+
         let mut text = Vec::new();
         r.read_to_end(&mut text)?;
 
-        Ok(Self { entry, text })
+        Ok(Self { entry, data, text })
     }
 }
 
@@ -105,7 +122,7 @@ mod test {
     use crate::assembler::Assembler;
     use crate::Result;
 
-    use super::Out;
+    use super::Output;
 
     #[test]
     fn test_display() -> Result<()> {
@@ -126,7 +143,7 @@ add:
    ret";
 
         let program = Assembler::new(&src).assemble()?;
-        let stack_file = Out::from_reader(program.as_slice())?;
+        let stack_file = Output::from_reader(program.as_slice())?;
         let have = stack_file.to_string();
         let want = "\
 .entry 8
