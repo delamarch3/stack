@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::iter::Peekable;
 use std::mem;
-use std::str::{Chars, FromStr};
+use std::str::Chars;
 
 use crate::program::Bytecode;
 use crate::Number;
@@ -30,6 +30,7 @@ enum Token {
 enum Keyword {
     Entry,
     Data,
+    Text,
     Word,
     Dword,
     Byte,
@@ -43,6 +44,7 @@ impl<'a> TryFrom<&'a str> for Keyword {
         match value {
             "entry" => Ok(Keyword::Entry),
             "data" => Ok(Keyword::Data),
+            "text" => Ok(Keyword::Text),
             "word" => Ok(Keyword::Word),
             "dword" => Ok(Keyword::Dword),
             "byte" => Ok(Keyword::Byte),
@@ -56,7 +58,7 @@ impl Keyword {
     fn is_data_type(&self) -> bool {
         match self {
             Keyword::Word | Keyword::Dword | Keyword::Byte | Keyword::String => true,
-            Keyword::Entry | Keyword::Data => false,
+            Keyword::Entry | Keyword::Data | Keyword::Text => false,
         }
     }
 }
@@ -218,11 +220,53 @@ impl<'s> Tokeniser<'s> {
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum Section {
+    Data,
+    Text,
+}
+
+#[derive(PartialEq, Eq)]
+struct Label {
+    section: Section,
+    offset: usize,
+}
+
+impl Label {
+    fn data(offset: usize) -> Self {
+        let section = Section::Data;
+        Self { section, offset }
+    }
+
+    fn text(offset: usize) -> Self {
+        let section = Section::Text;
+        Self { section, offset }
+    }
+}
+
+pub struct Output {
+    entry: usize,
+    data: Vec<u8>,
+    text: Vec<u8>,
+}
+
+impl From<Output> for Vec<u8> {
+    fn from(output: Output) -> Self {
+        let mut program =
+            Vec::with_capacity(size_of::<usize>() + output.data.len() + output.text.len());
+        program.extend(output.entry.to_le_bytes());
+        program.extend(output.data);
+        program.extend(output.text);
+        program
+    }
+}
+
 pub struct Assembler {
     tokens: Vec<Token>,
     position: usize,
-    program: Vec<u8>,
-    labels: HashMap<String, usize>,
+    data: Vec<u8>,
+    text: Vec<u8>,
+    labels: HashMap<String, Label>,
     unresolved: HashMap<usize, String>,
 }
 
@@ -230,28 +274,30 @@ impl Assembler {
     pub fn new(src: &str) -> Self {
         let tokens = Tokeniser::new(src).into_iter().collect();
         let position = 0;
-        let program = Vec::new();
+        let data = Vec::new();
+        let text = Vec::new();
         let labels = HashMap::new();
         let unresolved = HashMap::new();
 
         Self {
             tokens,
             position,
-            program,
+            data,
+            text,
             labels,
             unresolved,
         }
     }
 
     pub fn assemble(mut self) -> Result<Vec<u8>> {
-        self.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
-        self.assemble_label()?;
+        let entry = self.parse_entry()?;
 
         while let Some(token) = self.next_token() {
             match token {
                 Token::Word(word) => {
                     if self.check(&[Token::Colon]) {
-                        self.labels.insert(word.to_string(), self.program.len());
+                        self.labels
+                            .insert(word.to_string(), Label::text(self.text.len()));
                         continue;
                     }
 
@@ -265,14 +311,35 @@ impl Assembler {
             }
         }
 
-        for (i, label) in self.unresolved {
-            let Some(offset) = self.labels.get(&label) else {
-                Err(format!("could not resolve label: {label}"))?
-            };
-            self.program[i..i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
+        let entry_offset = self.resolve_label(&entry)?;
+
+        for (i, r#ref) in &self.unresolved {
+            let offset = self.resolve_label(&r#ref)?;
+            self.text[*i..*i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
         }
 
-        Ok(self.program)
+        let out = Output {
+            entry: entry_offset,
+            data: self.data,
+            text: self.text,
+        };
+
+        Ok(out.into())
+    }
+
+    fn resolve_label(&self, r#ref: &str) -> Result<usize> {
+        let Some(label) = self.labels.get(r#ref) else {
+            Err(format!("could not resolve label: {}", r#ref))?
+        };
+
+        // Since the program is loaded as [entry][data][text], the data section offsets stay as is
+        // while the text offsets are offset further by the data length
+        let offset = match label.section {
+            Section::Data => mem::size_of::<u64>() + label.offset,
+            Section::Text => mem::size_of::<u64>() + label.offset + self.data.len(),
+        };
+
+        Ok(offset)
     }
 
     fn assemble_directive(&mut self) -> Result<()> {
@@ -291,8 +358,12 @@ impl Assembler {
             None => unreachable!(),
         };
 
-        let offset = self.program.len();
-        if self.labels.insert(name.clone(), offset).is_some() {
+        let offset = self.data.len();
+        if self
+            .labels
+            .insert(name.clone(), Label::data(offset))
+            .is_some()
+        {
             Err(format!("label is declared twice: {name}"))?;
         }
 
@@ -313,31 +384,31 @@ impl Assembler {
                         match value {
                             Value::Number(number) if size == i8::SIZE => {
                                 let value = number.parse::<i8>()?;
-                                self.program.extend(&value.to_le_bytes());
+                                self.data.extend(value.to_le_bytes());
                             }
                             Value::Number(number) if size == i32::SIZE => {
                                 let value = number.parse::<i32>()?;
-                                self.program.extend(&value.to_le_bytes());
+                                self.data.extend(value.to_le_bytes());
                             }
                             Value::Number(number) if size == i64::SIZE => {
                                 let value = number.parse::<i64>()?;
-                                self.program.extend(&value.to_le_bytes());
+                                self.data.extend(value.to_le_bytes());
                             }
                             Value::Char(char) if size == i8::SIZE && char.is_ascii() => {
                                 let value: u8 = char.try_into().unwrap();
-                                self.program.extend(&value.to_le_bytes());
+                                self.data.extend(value.to_le_bytes());
                             }
                             Value::Char(char) if size == i32::SIZE => {
                                 let value = char as u32;
-                                self.program.extend(&value.to_le_bytes());
+                                self.data.extend(value.to_le_bytes());
                             }
                             Value::String(string) if size == 0 => {
-                                self.program.extend(string.into_bytes());
+                                self.data.extend(string.into_bytes());
                             }
                             value => Err(format!("value {value:?} does not match size {size}"))?,
                         }
                     }
-                    _ => self.program.extend(std::iter::repeat_n(0u8, size)),
+                    _ => self.data.extend(std::iter::repeat_n(0u8, size)),
                 };
 
                 self.check(&[Token::Comma])
@@ -402,12 +473,12 @@ impl Assembler {
     }
 
     fn assemble_operator(&mut self, code: Bytecode) {
-        self.program.extend(std::iter::once(code as u8));
+        self.text.extend(std::iter::once(code as u8));
     }
 
     fn assemble_operator_with_operand<T>(&mut self, code: Bytecode) -> Result<()>
     where
-        T: FromStr + Number,
+        T: Number,
     {
         self.assemble_operator(code);
 
@@ -417,7 +488,7 @@ impl Assembler {
                 let value = number
                     .parse::<T>()
                     .map_err(|_| format!("value cannot be parsed: {number}"))?;
-                self.program.extend(value.to_le_bytes());
+                self.text.extend(value.to_le_bytes());
             }
             Some(Token::Word(_)) if T::SIZE == 8 => {
                 self.assemble_label()?;
@@ -437,14 +508,26 @@ impl Assembler {
     fn assemble_label(&mut self) -> Result<()> {
         match self.next_token() {
             Some(Token::Word(label)) => {
-                self.unresolved.insert(self.program.len(), label);
-                self.program.extend(0u64.to_le_bytes());
+                self.unresolved.insert(self.text.len(), label);
+                self.text.extend(0u64.to_le_bytes());
             }
             Some(token) => Err(format!("unexpected token: {token:?}"))?,
             _ => unreachable!(),
         };
 
         Ok(())
+    }
+
+    fn parse_entry(&mut self) -> Result<String> {
+        self.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
+
+        let entry = match self.next_token() {
+            Some(Token::Word(entry)) => entry,
+            Some(token) => Err(format!("unexpected token: {token:?}"))?,
+            _ => unreachable!(),
+        };
+
+        Ok(entry)
     }
 
     fn check(&mut self, tokens: &[Token]) -> bool {

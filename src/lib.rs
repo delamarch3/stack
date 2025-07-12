@@ -16,6 +16,7 @@ pub(crate) trait Number:
     + Ord
     + std::fmt::Debug
     + std::fmt::Display
+    + std::str::FromStr
     + std::ops::Add<Output = Self>
     + std::ops::Sub<Output = Self>
     + std::ops::Mul<Output = Self>

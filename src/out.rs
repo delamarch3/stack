@@ -3,7 +3,7 @@ use std::{io::Read, mem};
 use crate::program::{Bytecode, Program};
 use crate::{Number, Result};
 
-pub struct StackOut {
+pub struct Out {
     entry: u64,
 
     // TODO
@@ -12,10 +12,10 @@ pub struct StackOut {
     text: Vec<u8>,
 }
 
-// TODO: Interpreter takes StackOut
-// TODO: Debugger - use StackOut.fmt and map position to line?
+// TODO: Interpreter takes Out
+// TODO: Debugger - use Out.fmt and map position to line?
 
-impl std::fmt::Display for StackOut {
+impl std::fmt::Display for Out {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const TAB_SPACES: usize = 4;
 
@@ -84,7 +84,7 @@ impl std::fmt::Display for StackOut {
     }
 }
 
-impl StackOut {
+impl Out {
     pub fn from_reader<R: Read>(mut r: R) -> Result<Self> {
         let mut entry_buf = [0u8; mem::size_of::<u64>()];
         let n = r.read(&mut entry_buf)?;
@@ -105,7 +105,7 @@ mod test {
     use crate::assembler::Assembler;
     use crate::Result;
 
-    use super::StackOut;
+    use super::Out;
 
     #[test]
     fn test_display() -> Result<()> {
@@ -126,7 +126,7 @@ add:
    ret";
 
         let program = Assembler::new(&src).assemble()?;
-        let stack_file = StackOut::from_reader(program.as_slice())?;
+        let stack_file = Out::from_reader(program.as_slice())?;
         let have = stack_file.to_string();
         let want = "\
 .entry 8
