@@ -7,6 +7,7 @@ mod locals;
 pub mod out;
 mod program;
 mod stack;
+mod tokeniser;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
