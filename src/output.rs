@@ -1,20 +1,22 @@
+use std::collections::HashMap;
 use std::{io::Read, mem};
 
 use crate::program::{Bytecode, Program};
 use crate::{Number, Result};
 
+#[derive(Debug)]
 pub struct Output {
-    // TODO
-    // labels: HashMap<u64, String>,
+    labels: HashMap<u64, String>,
     entry: u64,
     data: Vec<u8>,
     text: Vec<u8>,
 }
 
 // TODO: Interpreter takes Out
-// TODO: Debugger - use Out.fmt and map position to line?
+// TODO: Debugger - map position to line?
 
 impl std::fmt::Display for Output {
+    // TODO: format data
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const TAB_SPACES: usize = 4;
 
@@ -28,11 +30,21 @@ impl std::fmt::Display for Output {
             write!(f, "{operand}")
         }
 
-        writeln!(f, ".entry {}", self.entry)?;
+        if let Some(entry) = self.labels.get(&self.entry) {
+            writeln!(f, ".entry {}", entry)?;
+        } else {
+            writeln!(f, ".entry {}", self.entry)?;
+        }
+
         let mut pc = Program::new(&self.text);
-        let mut pos = pc.position();
+        let mut pos = pc.position(); // TODO: position should count entry and data len
         while let Ok(op) = pc.next_op() {
-            write!(f, "{:TAB_SPACES$}{}: ", "", pos + 8)?; // TODO: position shouldn't count entry
+            if let Some(label) = self.labels.get(&(pos + 8)) {
+                write!(f, "{label}:\n")?;
+            }
+
+            write!(f, "{:TAB_SPACES$}{}: ", "", pos + 8)?;
+
             match op {
                 Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, "push")?,
                 Bytecode::PushD => fmt_with_operand::<i64>(f, &mut pc, "push.d")?,
@@ -84,6 +96,7 @@ impl std::fmt::Display for Output {
 }
 
 impl From<Output> for Vec<u8> {
+    // TODO: file format
     fn from(output: Output) -> Self {
         let mut program =
             Vec::with_capacity(size_of::<usize>() + output.data.len() + output.text.len());
@@ -95,8 +108,13 @@ impl From<Output> for Vec<u8> {
 }
 
 impl Output {
-    pub fn new(entry: u64, data: Vec<u8>, text: Vec<u8>) -> Self {
-        Self { entry, data, text }
+    pub fn new(entry: u64, labels: HashMap<u64, String>, data: Vec<u8>, text: Vec<u8>) -> Self {
+        Self {
+            entry,
+            labels,
+            data,
+            text,
+        }
     }
 
     pub fn from_reader<R: Read>(mut r: R) -> Result<Self> {
@@ -108,12 +126,20 @@ impl Output {
         let entry = u64::from_le_bytes(entry_buf);
 
         // TODO
+        let labels = HashMap::new();
+
+        // TODO
         let data = Vec::new();
 
         let mut text = Vec::new();
         r.read_to_end(&mut text)?;
 
-        Ok(Self { entry, data, text })
+        Ok(Self {
+            entry,
+            labels,
+            data,
+            text,
+        })
     }
 }
 
@@ -121,8 +147,6 @@ impl Output {
 mod test {
     use crate::assembler::Assembler;
     use crate::Result;
-
-    use super::Output;
 
     #[test]
     fn test_display() -> Result<()> {
@@ -142,16 +166,17 @@ add:
    add
    ret";
 
-        let program = Assembler::new(&src).assemble()?;
-        let stack_file = Output::from_reader(program.as_slice())?;
-        let have = stack_file.to_string();
+        let output = Assembler::new(&src).assemble()?;
+        let have = output.to_string();
         let want = "\
-.entry 8
+.entry main
+main:
     8: push 22
     13: push 33
     18: call 37
     27: store 0
     36: ret
+add:
     37: load 0
     46: load 1
     55: add

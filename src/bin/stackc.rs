@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     file.read_to_string(&mut src)?;
 
     const OUTPUT_FILE: &str = "a.out";
-    let program = Assembler::new(&src).assemble()?;
+    let program: Vec<u8> = Assembler::new(&src).assemble()?.into();
     OpenOptions::new()
         .create(true)
         .write(true)

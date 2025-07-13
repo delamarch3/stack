@@ -36,7 +36,7 @@ pub struct Assembler {
     data: Vec<u8>,
     text: Vec<u8>,
     labels: HashMap<String, Label>,
-    unresolved: HashMap<usize, String>,
+    unresolved: HashMap<u64, String>,
 }
 
 impl Assembler {
@@ -58,7 +58,7 @@ impl Assembler {
         }
     }
 
-    pub fn assemble(mut self) -> Result<Vec<u8>> {
+    pub fn assemble(mut self) -> Result<Output> {
         let entry = self.parse_entry()?;
 
         while let Some(token) = self.next_token() {
@@ -80,16 +80,22 @@ impl Assembler {
             }
         }
 
-        let entry_offset = self.resolve_label(&entry)?;
+        // Add entry offset to labels
+        let mut labels = HashMap::new();
+        let offset = self.resolve_label(&entry)? as u64;
+        labels.insert(offset, entry);
 
-        for (i, r#ref) in &self.unresolved {
-            let offset = self.resolve_label(&r#ref)?;
-            self.text[*i..*i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
+        // Backpatch and add other offsets to labels
+        let unresolved = std::mem::take(&mut self.unresolved);
+        for (i, r#ref) in unresolved.into_iter().map(|(k, v)| (k as usize, v)) {
+            let offset = self.resolve_label(&r#ref)? as u64;
+            self.text[i..i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
+            labels.insert(offset, r#ref);
         }
 
-        let out = Output::new(entry_offset as u64, self.data, self.text);
+        let out = Output::new(offset as u64, labels, self.data, self.text);
 
-        Ok(out.into())
+        Ok(out)
     }
 
     fn resolve_label(&self, r#ref: &str) -> Result<usize> {
@@ -273,7 +279,7 @@ impl Assembler {
     fn assemble_label(&mut self) -> Result<()> {
         match self.next_token() {
             Some(Token::Word(label)) => {
-                self.unresolved.insert(self.text.len(), label);
+                self.unresolved.insert(self.text.len() as u64, label);
                 self.text.extend(0u64.to_le_bytes());
             }
             Some(token) => Err(format!("unexpected token: {token:?}"))?,
@@ -362,7 +368,7 @@ push 10
 cmp
 jmp.lt loop
 ret";
-        let have = Assembler::new(&src).assemble()?;
+        let have: Vec<u8> = Assembler::new(&src).assemble()?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             13, 0, 0, 0, 0, 0, 0, 0,
@@ -396,7 +402,7 @@ add:
    load 1
    add
    ret";
-        let have = Assembler::new(&src).assemble()?;
+        let have: Vec<u8> = Assembler::new(&src).assemble()?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             8, 0, 0, 0, 0, 0, 0, 0,
@@ -428,7 +434,7 @@ main:
     add.d
     ret
 ";
-        let have = Assembler::new(&src).assemble()?;
+        let have: Vec<u8> = Assembler::new(&src).assemble()?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             20, 0, 0, 0, 0, 0, 0, 0,
