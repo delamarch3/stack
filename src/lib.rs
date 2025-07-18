@@ -59,3 +59,40 @@ macro_rules! impl_number {
 }
 
 impl_number!(u8, i8, i16, i32, i64, u64);
+
+pub trait Bytes {
+    fn read_u64(&mut self) -> Result<u64>;
+    fn read_u16(&mut self) -> Result<u16>;
+    fn read_n(&mut self, n: usize) -> Result<Vec<u8>>;
+}
+
+impl<T> Bytes for T
+where
+    T: std::io::Read,
+{
+    fn read_u64(&mut self) -> Result<u64> {
+        let mut buf = [0u8; size_of::<u64>()];
+        let n = self.read(&mut buf)?;
+        if n < size_of::<u64>() {
+            Err(format!("read less than expected bytes: {n}"))?;
+        }
+
+        Ok(u64::from_le_bytes(buf))
+    }
+
+    fn read_u16(&mut self) -> Result<u16> {
+        let mut buf = [0u8; size_of::<u16>()];
+        let n = self.read(&mut buf)?;
+        if n < size_of::<u16>() {
+            Err(format!("read less than expected bytes: {n}"))?;
+        }
+
+        Ok(u16::from_le_bytes(buf))
+    }
+
+    fn read_n(&mut self, n: usize) -> Result<Vec<u8>> {
+        let mut buf = vec![0; n as usize];
+        self.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}

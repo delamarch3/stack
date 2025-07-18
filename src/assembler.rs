@@ -93,7 +93,7 @@ impl Assembler {
             labels.insert(offset, r#ref);
         }
 
-        let out = Output::new(offset as u64, labels, self.data, self.text);
+        let out = Output::new(offset as u64, self.data, self.text, labels);
 
         Ok(out)
     }
