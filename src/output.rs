@@ -28,10 +28,12 @@ impl std::fmt::Display for Output {
             let operand = pc.next::<T>().map_err(|_| std::fmt::Error)?;
             write!(f, "{operand}")?;
 
-            let b = operand.to_le_bytes();
-            if b.as_ref().len() == 8 {
-                let n = u64::from_le_bytes(b.as_ref().try_into().unwrap());
-                if let Some(label) = labels.get(&n) {
+            // Check if the operand is also a label offset. It may not be so it is not directly
+            // substituted
+            if let Ok(offset) =
+                <[u8; 8]>::try_from(operand.to_le_bytes().as_ref()).map(u64::from_le_bytes)
+            {
+                if let Some(label) = labels.get(&offset) {
                     write!(f, " ; {}", label)?;
                 }
             }
