@@ -9,7 +9,7 @@ pub(crate) struct Frame {
     pub opstack: OperandStack,
     pub locals: Locals,
     pub entry: u64,
-    pub ret: usize,
+    pub ret: u64,
 }
 
 pub(crate) enum FrameResult {
@@ -21,7 +21,7 @@ pub(crate) enum FrameResult {
 }
 
 impl Frame {
-    pub fn new(locals: Locals, opstack: OperandStack, entry: u64, ret: usize) -> Self {
+    pub fn new(locals: Locals, opstack: OperandStack, entry: u64, ret: u64) -> Self {
         Self {
             opstack,
             locals,
@@ -134,7 +134,7 @@ impl Frame {
         locals.copy_from_slice(self.opstack.as_slice());
         self.opstack.clear();
         let entry = pc.next::<u64>()?;
-        let ret = pc.position() as usize;
+        let ret = pc.position();
         let opstack = OperandStack::default();
         let frame = Frame::new(locals, opstack, entry, ret);
         Ok(FrameResult::Call(frame))

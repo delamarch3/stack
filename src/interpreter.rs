@@ -44,16 +44,16 @@ impl<'a> Interpreter<'a> {
                     break;
                 }
                 FrameResult::Ret => {
-                    self.pc.set_position(current.ret as u64);
+                    self.pc.set_position(current.ret);
                 }
                 FrameResult::RetW => {
-                    self.pc.set_position(current.ret as u64);
+                    self.pc.set_position(current.ret);
                     self.frames[len - 1]
                         .opstack
                         .push::<i32>(current.opstack.pop());
                 }
                 FrameResult::RetD => {
-                    self.pc.set_position(current.ret as u64);
+                    self.pc.set_position(current.ret);
                     self.frames[len - 1]
                         .opstack
                         .push::<i64>(current.opstack.pop());
