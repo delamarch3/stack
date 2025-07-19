@@ -78,7 +78,7 @@ impl std::fmt::Display for Output {
         let mut pos = next_position(&pc);
         while let Ok(op) = pc.next_op() {
             if let Some(label) = self.labels.get(&(pos)) {
-                write!(f, "{label}:\n")?;
+                writeln!(f, "{label}:")?;
             }
 
             write!(f, "{:TAB_SPACES$}{}: ", "", pos)?;

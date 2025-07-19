@@ -1,6 +1,4 @@
 pub mod assembler;
-#[allow(unused)]
-mod expr;
 mod frame;
 pub mod interpreter;
 mod locals;
@@ -91,7 +89,7 @@ where
     }
 
     fn read_n(&mut self, n: usize) -> Result<Vec<u8>> {
-        let mut buf = vec![0; n as usize];
+        let mut buf = vec![0; n];
         self.read_exact(&mut buf)?;
         Ok(buf)
     }
