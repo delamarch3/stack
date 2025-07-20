@@ -1,9 +1,9 @@
 use std::env;
 use std::fs::File;
-use std::io::Read;
 use std::process;
 
 use stack::interpreter::Interpreter;
+use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -15,11 +15,10 @@ fn main() -> Result<()> {
         process::exit(1);
     };
 
-    let mut src = Vec::new();
-    let mut file = File::open(path)?;
-    file.read_to_end(&mut src)?;
+    let file = File::open(path)?;
+    let output: Vec<u8> = Output::deserialise(file)?.into();
 
-    let mut interpreter = Interpreter::new(&src)?;
+    let mut interpreter = Interpreter::new(&output)?;
     if let Err(err) = interpreter.run() {
         eprintln!("{err}");
     };

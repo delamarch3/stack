@@ -21,13 +21,13 @@ fn main() -> Result<()> {
     file.read_to_string(&mut src)?;
 
     const OUTPUT_FILE: &str = "a.out";
-    let program: Vec<u8> = Assembler::new(&src).assemble()?.into();
+    let output = Assembler::new(&src).assemble()?;
     OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .open(OUTPUT_FILE)?
-        .write_all(&program)?;
+        .write_all(&output.serialise())?;
 
     Ok(())
 }
