@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     };
 
     let file = File::open(path)?;
-    let output: Vec<u8> = Output::deserialise(file)?.into();
+    let output = Output::deserialise(file)?;
 
     let mut interpreter = Interpreter::new(&output)?;
     if let Err(err) = interpreter.run() {

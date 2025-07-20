@@ -1,4 +1,5 @@
 pub mod assembler;
+pub mod debugger;
 mod frame;
 pub mod interpreter;
 mod locals;

@@ -21,7 +21,7 @@ impl std::fmt::Display for Output {
         fn fmt_with_operand<T: Number>(
             f: &mut std::fmt::Formatter<'_>,
             labels: &HashMap<u64, String>,
-            pc: &mut Program<'_>,
+            pc: &mut Program<&[u8]>,
             word: &str,
         ) -> std::fmt::Result {
             write!(f, "{} ", word)?;
@@ -42,7 +42,7 @@ impl std::fmt::Display for Output {
         }
 
         let next_position =
-            |pc: &Program<'_>| pc.position() + size_of::<u64>() as u64 + self.data.len() as u64;
+            |pc: &Program<&[u8]>| pc.position() + size_of::<u64>() as u64 + self.data.len() as u64;
 
         // Write entry
         if let Some(entry) = self.labels.get(&self.entry) {
@@ -74,7 +74,7 @@ impl std::fmt::Display for Output {
         writeln!(f)?;
 
         // Write text
-        let mut pc = Program::new(&self.text);
+        let mut pc = Program::new(self.text.as_slice());
         let mut pos = next_position(&pc);
         while let Ok(op) = pc.next_op() {
             if let Some(label) = self.labels.get(&(pos)) {
@@ -133,14 +133,20 @@ impl std::fmt::Display for Output {
     }
 }
 
-impl From<Output> for Vec<u8> {
-    fn from(output: Output) -> Self {
+impl From<&Output> for Vec<u8> {
+    fn from(output: &Output) -> Self {
         let mut program =
             Vec::with_capacity(size_of::<u64>() + output.data.len() + output.text.len());
         program.extend(output.entry.to_le_bytes());
-        program.extend(output.data);
-        program.extend(output.text);
+        program.extend(&output.data);
+        program.extend(&output.text);
         program
+    }
+}
+
+impl From<Output> for Vec<u8> {
+    fn from(output: Output) -> Self {
+        (&output).into()
     }
 }
 

@@ -47,12 +47,12 @@ pub enum Bytecode {
 }
 
 #[derive(Clone)]
-pub struct Program<'a> {
-    counter: Cursor<&'a [u8]>,
+pub struct Program<T: AsRef<[u8]>> {
+    counter: Cursor<T>,
 }
 
-impl<'a> Program<'a> {
-    pub fn new(src: &'a [u8]) -> Self {
+impl<T: AsRef<[u8]>> Program<T> {
+    pub fn new(src: T) -> Self {
         let counter = Cursor::new(src);
         Self { counter }
     }
@@ -65,17 +65,17 @@ impl<'a> Program<'a> {
         self.counter.position()
     }
 
-    pub fn next<T: Number>(&mut self) -> Result<T> {
+    pub fn next<N: Number>(&mut self) -> Result<N> {
         let mut buf = [0u8; 8];
-        let n = self.counter.read(&mut buf[0..T::SIZE])?;
+        let n = self.counter.read(&mut buf[0..N::SIZE])?;
         if n == 0 {
             Err("unexpected end of program")?;
         }
-        if n < T::SIZE {
+        if n < N::SIZE {
             Err(format!("read less than expected bytes: {n}"))?;
         }
 
-        Ok(T::from_le_bytes(&buf[0..T::SIZE]))
+        Ok(N::from_le_bytes(&buf[0..N::SIZE]))
     }
 
     pub fn next_op(&mut self) -> Result<Bytecode> {
@@ -85,7 +85,7 @@ impl<'a> Program<'a> {
         Ok(op)
     }
 
-    pub fn get<T: Number>(&mut self, offset: usize) -> T {
-        T::from_le_bytes(&self.counter.get_ref()[offset..offset + T::SIZE])
+    pub fn get<N: Number>(&mut self, offset: usize) -> N {
+        N::from_le_bytes(&self.counter.get_ref().as_ref()[offset..offset + N::SIZE])
     }
 }

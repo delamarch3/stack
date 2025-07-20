@@ -30,7 +30,7 @@ impl Frame {
         }
     }
 
-    pub fn run(&mut self, pc: &mut Program<'_>) -> Result<FrameResult> {
+    pub fn run(&mut self, pc: &mut Program<Vec<u8>>) -> Result<FrameResult> {
         loop {
             if let Some(fr) = self.step(pc)? {
                 return Ok(fr);
@@ -38,7 +38,7 @@ impl Frame {
         }
     }
 
-    fn step(&mut self, pc: &mut Program) -> Result<Option<FrameResult>> {
+    pub fn step(&mut self, pc: &mut Program<Vec<u8>>) -> Result<Option<FrameResult>> {
         match pc.next_op()? {
             Bytecode::Push => self.push::<i32>(pc)?,
             Bytecode::PushD => self.push::<i64>(pc)?,
@@ -84,34 +84,34 @@ impl Frame {
         Ok(None)
     }
 
-    fn push<T: Number>(&mut self, pc: &mut Program) -> Result<()> {
+    fn push<T: Number>(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
         let val = pc.next::<T>()?;
         self.opstack.push(val);
         Ok(())
     }
 
-    fn load<T: Number>(&mut self, pc: &mut Program) -> Result<()> {
+    fn load<T: Number>(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
         let i = pc.next::<u64>()?;
         let val = self.locals.read::<T>(i);
         self.opstack.push(val);
         Ok(())
     }
 
-    fn store<T: Number>(&mut self, pc: &mut Program) -> Result<()> {
+    fn store<T: Number>(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
         let i = pc.next::<u64>()?;
         let val = self.opstack.pop();
         self.locals.write::<T>(i, val);
         Ok(())
     }
 
-    fn get<T: Number>(&mut self, pc: &mut Program) {
+    fn get<T: Number>(&mut self, pc: &mut Program<Vec<u8>>) {
         let offset = self.opstack.pop::<u64>();
         let ptr = self.opstack.pop::<u64>();
         let value = pc.get::<T>((ptr + offset) as usize);
         self.opstack.push(value);
     }
 
-    fn jmp(&mut self, pc: &mut Program, conditions: &[Ordering]) -> Result<()> {
+    fn jmp(&mut self, pc: &mut Program<Vec<u8>>, conditions: &[Ordering]) -> Result<()> {
         let pos = pc.next::<u64>()?;
 
         let jmp = match conditions {
@@ -129,7 +129,7 @@ impl Frame {
         Ok(())
     }
 
-    fn call(&mut self, pc: &mut Program) -> Result<FrameResult> {
+    fn call(&mut self, pc: &mut Program<Vec<u8>>) -> Result<FrameResult> {
         let mut locals = Locals::default();
         locals.copy_from_slice(self.opstack.as_slice());
         self.opstack.clear();
