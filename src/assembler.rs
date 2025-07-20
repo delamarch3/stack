@@ -227,7 +227,7 @@ impl Assembler {
             "cmp.d" => self.assemble_operator(Bytecode::CmpD),
             "dup" | "dup.w" => self.assemble_operator(Bytecode::Dup),
             "dup.d" => self.assemble_operator(Bytecode::DupD),
-            "fail" => self.assemble_operator(Bytecode::Fail),
+            "panic" => self.assemble_operator(Bytecode::Panic),
             "ret" => self.assemble_operator(Bytecode::Ret),
             "ret.w" => self.assemble_operator(Bytecode::RetW),
             "ret.d" => self.assemble_operator(Bytecode::RetD),

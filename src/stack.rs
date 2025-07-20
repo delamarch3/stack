@@ -2,7 +2,7 @@ use crate::Number;
 
 const STACK_SIZE: usize = 512;
 const SLOT_SIZE: usize = std::mem::size_of::<i32>();
-pub(crate) struct OperandStack {
+pub struct OperandStack {
     stack: Box<[u8; STACK_SIZE]>,
     idx: usize,
 }

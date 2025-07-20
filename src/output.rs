@@ -119,7 +119,7 @@ impl std::fmt::Display for Output {
                 Bytecode::JmpGt => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp.gt")?,
                 Bytecode::JmpNe => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp.ne")?,
                 Bytecode::Call => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "call")?,
-                Bytecode::Fail => write!(f, "fail")?,
+                Bytecode::Panic => write!(f, "panic")?,
                 Bytecode::Ret => write!(f, "ret")?,
                 Bytecode::RetW => write!(f, "ret.w")?,
                 Bytecode::RetD => write!(f, "ret.d")?,

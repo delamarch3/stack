@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         eprintln!("{err}");
     };
 
-    interpreter.print_opstack();
+    println!("{}", interpreter.opstack().unwrap());
 
     Ok(())
 }

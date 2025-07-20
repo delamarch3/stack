@@ -17,7 +17,7 @@ pub(crate) enum FrameResult {
     Ret,
     RetW,
     RetD,
-    Fail,
+    Panic,
 }
 
 impl Frame {
@@ -75,7 +75,7 @@ impl Frame {
             Bytecode::Dup => self.opstack.dup::<i32>(),
             Bytecode::DupD => self.opstack.dup::<i64>(),
             Bytecode::Call => return self.call(pc).map(Some),
-            Bytecode::Fail => return Ok(Some(FrameResult::Fail)),
+            Bytecode::Panic => return Ok(Some(FrameResult::Panic)),
             Bytecode::Ret => return Ok(Some(FrameResult::Ret)),
             Bytecode::RetW => return Ok(Some(FrameResult::RetW)),
             Bytecode::RetD => return Ok(Some(FrameResult::RetD)),

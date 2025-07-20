@@ -28,42 +28,15 @@ impl Interpreter {
         Ok(Self { entry, pc, frames })
     }
 
-    pub fn print_opstack(&self) {
-        println!("{}", self.frames.last().unwrap().opstack)
+    pub fn opstack(&self) -> Option<&OperandStack> {
+        self.frames.last().map(|f| &f.opstack)
     }
 
     pub fn run(&mut self) -> Result<()> {
         while let Some(mut current) = self.frames.pop() {
-            let len = self.frames.len();
-            let is_entry = len == 0;
-
-            // TODO: better error reporting
-            match current.run(&mut self.pc)? {
-                FrameResult::Call(next) => {
-                    self.pc.set_position(next.entry);
-                    self.frames.push(current);
-                    self.frames.push(next);
-                }
-                FrameResult::Ret | FrameResult::RetW | FrameResult::RetD if is_entry => {
-                    self.frames.push(current);
-                    break;
-                }
-                FrameResult::Ret => {
-                    self.pc.set_position(current.ret);
-                }
-                FrameResult::RetW => {
-                    self.pc.set_position(current.ret);
-                    self.frames[len - 1]
-                        .opstack
-                        .push::<i32>(current.opstack.pop());
-                }
-                FrameResult::RetD => {
-                    self.pc.set_position(current.ret);
-                    self.frames[len - 1]
-                        .opstack
-                        .push::<i64>(current.opstack.pop());
-                }
-                FrameResult::Fail => Err("FAILED")?,
+            let fr = current.run(&mut self.pc)?;
+            if self.handle_frame_result(fr, current)? {
+                break;
             }
         }
 
@@ -75,40 +48,48 @@ impl Interpreter {
             unreachable!()
         };
 
-        let len = self.frames.len();
-        let is_entry = len == 0;
-
         if let Some(fr) = current.step(&mut self.pc)? {
-            match fr {
-                FrameResult::Call(next) => {
-                    self.pc.set_position(next.entry);
-                    self.frames.push(current);
-                    self.frames.push(next);
-                }
-                FrameResult::Ret | FrameResult::RetW | FrameResult::RetD if is_entry => {
-                    self.frames.push(current);
-                }
-                FrameResult::Ret => {
-                    self.pc.set_position(current.ret);
-                }
-                FrameResult::RetW => {
-                    self.pc.set_position(current.ret);
-                    self.frames[len - 1]
-                        .opstack
-                        .push::<i32>(current.opstack.pop());
-                }
-                FrameResult::RetD => {
-                    self.pc.set_position(current.ret);
-                    self.frames[len - 1]
-                        .opstack
-                        .push::<i64>(current.opstack.pop());
-                }
-                FrameResult::Fail => Err("FAILED")?,
-            }
+            self.handle_frame_result(fr, current)?;
         } else {
             self.frames.push(current);
         }
 
         Ok(self.pc.position())
+    }
+
+    // Returns true if returning from the main routine
+    fn handle_frame_result(&mut self, fr: FrameResult, mut current: Frame) -> Result<bool> {
+        let last = self.frames.len().saturating_sub(1);
+        let main = self.entry == current.entry;
+
+        let return_main = match fr {
+            FrameResult::Call(next) => {
+                self.pc.set_position(next.entry);
+                self.frames.push(current);
+                self.frames.push(next);
+                false
+            }
+            FrameResult::Ret | FrameResult::RetW | FrameResult::RetD if main => {
+                self.frames.push(current);
+                true
+            }
+            FrameResult::Ret => {
+                self.pc.set_position(current.ret);
+                false
+            }
+            FrameResult::RetW => {
+                self.pc.set_position(current.ret);
+                self.frames[last].opstack.push::<i32>(current.opstack.pop());
+                false
+            }
+            FrameResult::RetD => {
+                self.pc.set_position(current.ret);
+                self.frames[last].opstack.push::<i64>(current.opstack.pop());
+                false
+            }
+            FrameResult::Panic => Err("panic")?,
+        };
+
+        Ok(return_main)
     }
 }

@@ -11,7 +11,7 @@ mod tokeniser;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[allow(dead_code)]
-pub(crate) trait Number:
+pub trait Number:
     Sized
     + Ord
     + std::fmt::Debug

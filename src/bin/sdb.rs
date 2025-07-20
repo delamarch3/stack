@@ -39,7 +39,7 @@ fn main() -> Result<()> {
             },
             "stack" => match interpreter {
                 Some(ref i) => {
-                    i.print_opstack();
+                    writeln!(stdout, "{}", i.opstack().unwrap())?;
                 }
                 None => writeln!(stdout, "no program currently running")?,
             },

@@ -40,7 +40,7 @@ pub enum Bytecode {
     JmpGt,
     JmpNe,
     Call,
-    Fail,
+    Panic,
     Ret,
     RetW,
     RetD,
