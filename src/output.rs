@@ -58,10 +58,10 @@ impl std::fmt::Display for Output {
 
             write!(f, "{pos}: ")?;
             for b in chunk {
-                write!(f, "{:x} ", b)?;
+                write!(f, "{:02x} ", b)?;
             }
 
-            write!(f, "| ")?;
+            write!(f, "|")?;
             for b in chunk {
                 if b.is_ascii_graphic() {
                     write!(f, "{}", *b as char)?
@@ -69,7 +69,7 @@ impl std::fmt::Display for Output {
                     write!(f, ".")?
                 }
             }
-            writeln!(f)?;
+            writeln!(f, "|")?;
         }
         writeln!(f)?;
 
@@ -269,7 +269,7 @@ add:
         let want = "\
 .entry main
 
-8: 61 62 63 0 4c 0 0 0 | abc.L...
+8: 61 62 63 00 4c 00 00 00 |abc.L...|
 
 main:
     16: push.d 8 ; record
