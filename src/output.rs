@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::io::Read;
 
 use crate::program::{Bytecode, Program};
@@ -12,38 +13,8 @@ pub struct Output {
     text: Vec<u8>,
 }
 
-// TODO: Debugger - map position to line?
-
 impl std::fmt::Display for Output {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const TAB_SPACES: usize = 4;
-
-        fn fmt_with_operand<T: Number>(
-            f: &mut std::fmt::Formatter<'_>,
-            labels: &HashMap<u64, String>,
-            pc: &mut Program<&[u8]>,
-            word: &str,
-        ) -> std::fmt::Result {
-            write!(f, "{} ", word)?;
-            let operand = pc.next::<T>().map_err(|_| std::fmt::Error)?;
-            write!(f, "{operand}")?;
-
-            // Check if the operand is also a label offset. It may not be so it is not directly
-            // substituted
-            if let Ok(offset) =
-                <[u8; 8]>::try_from(operand.to_le_bytes().as_ref()).map(u64::from_le_bytes)
-            {
-                if let Some(label) = labels.get(&offset) {
-                    write!(f, " ; {}", label)?;
-                }
-            }
-
-            Ok(())
-        }
-
-        let next_position =
-            |pc: &Program<&[u8]>| pc.position() + size_of::<u64>() as u64 + self.data.len() as u64;
-
         // Write entry
         if let Some(entry) = self.labels.get(&self.entry) {
             writeln!(f, ".entry {}", entry)?;
@@ -74,60 +45,7 @@ impl std::fmt::Display for Output {
         writeln!(f)?;
 
         // Write text
-        let mut pc = Program::new(self.text.as_slice());
-        let mut pos = next_position(&pc);
-        while let Ok(op) = pc.next_op() {
-            if let Some(label) = self.labels.get(&(pos)) {
-                writeln!(f, "{label}:")?;
-            }
-
-            write!(f, "{:TAB_SPACES$}{}: ", "", pos)?;
-
-            match op {
-                Bytecode::Push => fmt_with_operand::<i32>(f, &self.labels, &mut pc, "push")?,
-                Bytecode::PushD => fmt_with_operand::<i64>(f, &self.labels, &mut pc, "push.d")?,
-                Bytecode::PushB => fmt_with_operand::<i8>(f, &self.labels, &mut pc, "push")?,
-                Bytecode::Pop => write!(f, "pop")?,
-                Bytecode::PopD => write!(f, "pop.d")?,
-                Bytecode::PopB => write!(f, "pop.b")?,
-                Bytecode::Load => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "load")?,
-                Bytecode::LoadD => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "load.d")?,
-                Bytecode::LoadB => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "load.b")?,
-                Bytecode::Store => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "store")?,
-                Bytecode::StoreD => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "store.d")?,
-                Bytecode::StoreB => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "store.b")?,
-                Bytecode::Get => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "get")?,
-                Bytecode::GetD => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "get.d")?,
-                Bytecode::GetB => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "get.b")?,
-                Bytecode::Add => write!(f, "add")?,
-                Bytecode::AddD => write!(f, "add.d")?,
-                Bytecode::AddB => write!(f, "add.b")?,
-                Bytecode::Sub => write!(f, "sub")?,
-                Bytecode::SubD => write!(f, "sub.d")?,
-                Bytecode::SubB => write!(f, "sub.b")?,
-                Bytecode::Mul => write!(f, "mul")?,
-                Bytecode::MulD => write!(f, "mul.d")?,
-                Bytecode::Div => write!(f, "div")?,
-                Bytecode::DivD => write!(f, "div.d")?,
-                Bytecode::Cmp => write!(f, "cmp")?,
-                Bytecode::CmpD => write!(f, "cmp.d")?,
-                Bytecode::Dup => write!(f, "dup")?,
-                Bytecode::DupD => write!(f, "dup.d")?,
-                Bytecode::Jmp => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp")?,
-                Bytecode::JmpLt => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp.lt")?,
-                Bytecode::JmpEq => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp.eq")?,
-                Bytecode::JmpGt => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp.gt")?,
-                Bytecode::JmpNe => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "jmp.ne")?,
-                Bytecode::Call => fmt_with_operand::<u64>(f, &self.labels, &mut pc, "call")?,
-                Bytecode::Panic => write!(f, "panic")?,
-                Bytecode::Ret => write!(f, "ret")?,
-                Bytecode::RetW => write!(f, "ret.w")?,
-                Bytecode::RetD => write!(f, "ret.d")?,
-            }
-
-            pos = next_position(&pc);
-            writeln!(f)?;
-        }
+        self.fmt_text(f).map_err(|_| std::fmt::Error)?;
 
         Ok(())
     }
@@ -201,7 +119,7 @@ impl Output {
     pub fn serialise(self) -> Vec<u8> {
         let (offsets, labels) = self.labels.into_iter().collect::<(Vec<u64>, Vec<String>)>();
 
-        let mut program = Vec::with_capacity(
+        let mut output = Vec::with_capacity(
             size_of::<u64>() // entry
                 + size_of::<u16>() // data
                 + self.data.len()
@@ -214,28 +132,119 @@ impl Output {
         );
 
         // Entry
-        program.extend(self.entry.to_le_bytes());
+        output.extend(self.entry.to_le_bytes());
 
         // Data and text
-        program.extend(u16::try_from(self.data.len()).unwrap().to_le_bytes());
-        program.extend(&self.data);
-        program.extend(u16::try_from(self.text.len()).unwrap().to_le_bytes());
-        program.extend(&self.text);
+        output.extend(u16::try_from(self.data.len()).unwrap().to_le_bytes());
+        output.extend(&self.data);
+        output.extend(u16::try_from(self.text.len()).unwrap().to_le_bytes());
+        output.extend(&self.text);
 
         // Label offsets
-        program.extend(u16::try_from(offsets.len()).unwrap().to_le_bytes());
+        output.extend(u16::try_from(offsets.len()).unwrap().to_le_bytes());
         offsets
             .into_iter()
-            .for_each(|offset| program.extend(offset.to_le_bytes()));
+            .for_each(|offset| output.extend(offset.to_le_bytes()));
 
         // Label values
-        program.extend(u16::try_from(labels.len()).unwrap().to_le_bytes());
+        output.extend(u16::try_from(labels.len()).unwrap().to_le_bytes());
         labels.into_iter().for_each(|label| {
-            program.extend(u16::try_from(label.len()).unwrap().to_le_bytes());
-            program.extend(label.as_bytes());
+            output.extend(u16::try_from(label.len()).unwrap().to_le_bytes());
+            output.extend(label.as_bytes());
         });
 
-        program
+        output
+    }
+
+    pub fn fmt_text(&self, f: &mut impl Write) -> Result<Vec<u64>> {
+        const TAB_SPACES: usize = 4;
+
+        fn fmt_with_operand<T: Number>(
+            f: &mut impl Write,
+            pc: &mut Program<&[u8]>,
+            labels: &HashMap<u64, String>,
+            word: &str,
+        ) -> std::fmt::Result {
+            write!(f, "{} ", word)?;
+            let operand = pc.next::<T>().map_err(|_| std::fmt::Error)?;
+            write!(f, "{operand}")?;
+
+            // Check if the operand is also a label offset. It may not be so it is not directly
+            // substituted
+            if let Ok(offset) =
+                <[u8; 8]>::try_from(operand.to_le_bytes().as_ref()).map(u64::from_le_bytes)
+            {
+                if let Some(label) = labels.get(&offset) {
+                    write!(f, " ; {}", label)?;
+                }
+            }
+
+            Ok(())
+        }
+
+        let next_position =
+            |pc: &Program<&[u8]>| pc.position() + size_of::<u64>() as u64 + self.data.len() as u64;
+
+        // Write text
+        let mut lines = Vec::new();
+        let mut pc = Program::new(self.text.as_slice());
+        let mut pos = next_position(&pc);
+        lines.push(pos);
+        while let Ok(op) = pc.next_op() {
+            lines.push(pos);
+            if let Some(label) = self.labels.get(&(pos)) {
+                writeln!(f, "{label}:")?;
+            }
+
+            write!(f, "{:TAB_SPACES$}{}: ", "", pos)?;
+
+            match op {
+                Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, &self.labels, "push")?,
+                Bytecode::PushD => fmt_with_operand::<i64>(f, &mut pc, &self.labels, "push.d")?,
+                Bytecode::PushB => fmt_with_operand::<i8>(f, &mut pc, &self.labels, "push")?,
+                Bytecode::Pop => write!(f, "pop")?,
+                Bytecode::PopD => write!(f, "pop.d")?,
+                Bytecode::PopB => write!(f, "pop.b")?,
+                Bytecode::Load => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "load")?,
+                Bytecode::LoadD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "load.d")?,
+                Bytecode::LoadB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "load.b")?,
+                Bytecode::Store => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "store")?,
+                Bytecode::StoreD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "store.d")?,
+                Bytecode::StoreB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "store.b")?,
+                Bytecode::Get => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "get")?,
+                Bytecode::GetD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "get.d")?,
+                Bytecode::GetB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "get.b")?,
+                Bytecode::Add => write!(f, "add")?,
+                Bytecode::AddD => write!(f, "add.d")?,
+                Bytecode::AddB => write!(f, "add.b")?,
+                Bytecode::Sub => write!(f, "sub")?,
+                Bytecode::SubD => write!(f, "sub.d")?,
+                Bytecode::SubB => write!(f, "sub.b")?,
+                Bytecode::Mul => write!(f, "mul")?,
+                Bytecode::MulD => write!(f, "mul.d")?,
+                Bytecode::Div => write!(f, "div")?,
+                Bytecode::DivD => write!(f, "div.d")?,
+                Bytecode::Cmp => write!(f, "cmp")?,
+                Bytecode::CmpD => write!(f, "cmp.d")?,
+                Bytecode::Dup => write!(f, "dup")?,
+                Bytecode::DupD => write!(f, "dup.d")?,
+                Bytecode::Jmp => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp")?,
+                Bytecode::JmpLt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.lt")?,
+                Bytecode::JmpEq => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.eq")?,
+                Bytecode::JmpGt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.gt")?,
+                Bytecode::JmpNe => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.ne")?,
+                Bytecode::Call => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "call")?,
+                Bytecode::Panic => write!(f, "panic")?,
+                Bytecode::Ret => write!(f, "ret")?,
+                Bytecode::RetW => write!(f, "ret.w")?,
+                Bytecode::RetD => write!(f, "ret.d")?,
+            }
+
+            pos = next_position(&pc);
+            writeln!(f)?;
+        }
+
+        Ok(lines)
     }
 }
 

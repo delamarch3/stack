@@ -20,6 +20,10 @@ fn main() -> Result<()> {
     let output = Output::deserialise(file)?;
     let mut interpreter = None;
 
+    let mut text = String::new();
+    let line_map = output.fmt_text(&mut text)?;
+    let text: Vec<&str> = text.split('\n').collect();
+
     let mut stdout = stdout();
     let mut stdin = stdin().lines();
     while let Some(line) = stdin.next() {
@@ -28,12 +32,19 @@ fn main() -> Result<()> {
         match line.as_str() {
             "r" | "run" => match interpreter {
                 Some(_) => writeln!(stdout, "program currently running...")?,
-                None => interpreter = Some(Interpreter::new(&output)?),
+                None => {
+                    writeln!(stdout, "{}", text[0])?;
+                    interpreter = Some(Interpreter::new(&output)?)
+                }
             },
             "s" | "step" => match &mut interpreter {
                 Some(i) => {
                     let position = i.step()?;
-                    writeln!(stdout, "New position: {position}")?;
+                    let line = line_map
+                        .iter()
+                        .position(|&offset| offset == position)
+                        .unwrap();
+                    writeln!(stdout, "{}", text[line])?;
                 }
                 None => writeln!(stdout, "no program currently running")?,
             },
@@ -43,6 +54,9 @@ fn main() -> Result<()> {
                 }
                 None => writeln!(stdout, "no program currently running")?,
             },
+            "v" | "var" => todo!(),
+            "p" | "peek" => todo!(),
+            "bt" | "backtrace" => todo!(),
             "disasm" => write!(stdout, "{output}")?,
             cmd => write!(stdout, "invalid command: {cmd}\n")?,
         }
