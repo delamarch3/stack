@@ -28,6 +28,10 @@ impl Interpreter {
         Ok(Self { entry, pc, frames })
     }
 
+    pub fn position(&self) -> u64 {
+        self.pc.position()
+    }
+
     pub fn opstack(&self) -> Option<&OperandStack> {
         self.frames.last().map(|f| &f.opstack)
     }

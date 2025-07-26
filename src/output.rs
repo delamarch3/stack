@@ -165,7 +165,7 @@ impl Output {
         Ok(())
     }
 
-    pub fn fmt_text(&self, f: &mut impl Write) -> Result<Vec<u64>> {
+    pub fn fmt_text(&self, f: &mut impl Write) -> Result<HashMap<u64, usize>> {
         const TAB_SPACES: usize = 4;
 
         fn fmt_with_operand<T: Number>(
@@ -195,16 +195,18 @@ impl Output {
             |pc: &Program<&[u8]>| pc.position() + size_of::<u64>() as u64 + self.data.len() as u64;
 
         // Write text
-        let mut lines = Vec::new();
+        let mut line = 0;
+        let mut lines = HashMap::new(); // Position -> Line
         let mut pc = Program::new(self.text.as_slice());
         let mut pos = next_position(&pc);
-        lines.push(pos);
+        lines.insert(pos, line);
         while let Ok(op) = pc.next_op() {
-            lines.push(pos);
-            if let Some(label) = self.labels.get(&(pos)) {
+            if let Some(label) = self.labels.get(&pos) {
                 writeln!(f, "{label}:")?;
+                line += 1;
             }
 
+            lines.insert(pos, line);
             write!(f, "{:TAB_SPACES$}{}: ", "", pos)?;
 
             match op {
@@ -250,6 +252,7 @@ impl Output {
             }
 
             pos = next_position(&pc);
+            line += 1;
             writeln!(f)?;
         }
 

@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     let mut interpreter = None;
 
     let mut text = String::new();
-    let line_map = output.fmt_text(&mut text)?;
+    let lines = output.fmt_text(&mut text)?;
     let text: Vec<&str> = text.split('\n').collect();
 
     let mut stdout = stdout();
@@ -33,17 +33,17 @@ fn main() -> Result<()> {
             "r" | "run" => match interpreter {
                 Some(_) => writeln!(stdout, "program currently running...")?,
                 None => {
-                    writeln!(stdout, "{}", text[0])?;
-                    interpreter = Some(Interpreter::new(&output)?)
+                    let int = Interpreter::new(&output)?;
+                    let position = int.position();
+                    let line = lines[&position];
+                    writeln!(stdout, "{}", text[line])?;
+                    interpreter = Some(int)
                 }
             },
             "s" | "step" => match &mut interpreter {
-                Some(i) => {
-                    let position = i.step()?;
-                    let line = line_map
-                        .iter()
-                        .position(|&offset| offset == position)
-                        .unwrap();
+                Some(int) => {
+                    let position = int.step()?;
+                    let line = lines[&position];
                     writeln!(stdout, "{}", text[line])?;
                 }
                 None => writeln!(stdout, "no program currently running")?,
