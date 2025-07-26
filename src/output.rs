@@ -15,36 +15,12 @@ pub struct Output {
 
 impl std::fmt::Display for Output {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Write entry
-        if let Some(entry) = self.labels.get(&self.entry) {
-            writeln!(f, ".entry {}", entry)?;
-        } else {
-            writeln!(f, ".entry {}", self.entry)?;
-        }
+        self.fmt_entry(f).map_err(|_| std::fmt::Error)?;
         writeln!(f)?;
 
-        // Write data
-        for (i, chunk) in self.data.as_slice().chunks(16).enumerate() {
-            let pos = i + size_of::<u64>();
-
-            write!(f, "{pos}: ")?;
-            for b in chunk {
-                write!(f, "{:02x} ", b)?;
-            }
-
-            write!(f, "|")?;
-            for b in chunk {
-                if b.is_ascii_graphic() {
-                    write!(f, "{}", *b as char)?
-                } else {
-                    write!(f, ".")?
-                }
-            }
-            writeln!(f, "|")?;
-        }
+        self.fmt_data(f).map_err(|_| std::fmt::Error)?;
         writeln!(f)?;
 
-        // Write text
         self.fmt_text(f).map_err(|_| std::fmt::Error)?;
 
         Ok(())
@@ -154,6 +130,39 @@ impl Output {
         });
 
         output
+    }
+
+    pub fn fmt_entry(&self, f: &mut impl Write) -> Result<()> {
+        if let Some(entry) = self.labels.get(&self.entry) {
+            writeln!(f, ".entry {}", entry)?;
+        } else {
+            writeln!(f, ".entry {}", self.entry)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn fmt_data(&self, f: &mut impl Write) -> Result<()> {
+        for (i, chunk) in self.data.as_slice().chunks(16).enumerate() {
+            let pos = i + size_of::<u64>();
+
+            write!(f, "{pos}: ")?;
+            for b in chunk {
+                write!(f, "{:02x} ", b)?;
+            }
+
+            write!(f, "|")?;
+            for b in chunk {
+                if b.is_ascii_graphic() {
+                    write!(f, "{}", *b as char)?
+                } else {
+                    write!(f, ".")?
+                }
+            }
+            writeln!(f, "|")?;
+        }
+
+        Ok(())
     }
 
     pub fn fmt_text(&self, f: &mut impl Write) -> Result<Vec<u64>> {
