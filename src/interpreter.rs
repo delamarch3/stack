@@ -47,18 +47,21 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<u64> {
+    // Results None if returning from the main routine
+    pub fn step(&mut self) -> Result<Option<u64>> {
         let Some(mut current) = self.frames.pop() else {
             unreachable!()
         };
 
         if let Some(fr) = current.step(&mut self.pc)? {
-            self.handle_frame_result(fr, current)?;
+            if self.handle_frame_result(fr, current)? {
+                return Ok(None);
+            }
         } else {
             self.frames.push(current);
         }
 
-        Ok(self.pc.position())
+        Ok(Some(self.pc.position()))
     }
 
     // Returns true if returning from the main routine

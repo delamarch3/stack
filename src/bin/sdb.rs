@@ -36,15 +36,20 @@ fn main() -> Result<()> {
                     let int = Interpreter::new(&output)?;
                     let position = int.position();
                     let line = lines[&position];
-                    writeln!(stdout, "{}", text[line])?;
+                    fmt_line(&mut stdout, &text, line)?;
                     interpreter = Some(int)
                 }
             },
             "s" | "step" => match &mut interpreter {
                 Some(int) => {
-                    let position = int.step()?;
+                    let Some(position) = int.step()? else {
+                        writeln!(stdout, "program finished running")?;
+                        interpreter = None;
+                        continue;
+                    };
+
                     let line = lines[&position];
-                    writeln!(stdout, "{}", text[line])?;
+                    fmt_line(&mut stdout, &text, line)?;
                 }
                 None => writeln!(stdout, "no program currently running")?,
             },
@@ -60,6 +65,29 @@ fn main() -> Result<()> {
             "disasm" => write!(stdout, "{output}")?,
             cmd => write!(stdout, "invalid command: {cmd}\n")?,
         }
+    }
+
+    Ok(())
+}
+
+fn fmt_line(f: &mut impl std::io::Write, lines: &Vec<&str>, line: usize) -> Result<()> {
+    const PAD_LINES: usize = 3;
+    const POINTER: &str = ">";
+    const WIDTH: usize = 4;
+
+    let start = line.saturating_sub(PAD_LINES);
+    let mut end = line + 1 + PAD_LINES;
+    if end >= lines.len() {
+        end = lines.len()
+    }
+
+    for i in start..end {
+        if i == line {
+            writeln!(f, "\x1b[93m{POINTER:>WIDTH$}{}\x1b[0m", lines[i])?;
+            continue;
+        }
+
+        writeln!(f, "{:WIDTH$}{}", "", lines[i])?;
     }
 
     Ok(())
