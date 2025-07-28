@@ -5,14 +5,14 @@ use crate::program::{Bytecode, Program};
 use crate::stack::OperandStack;
 use crate::{Number, Result};
 
-pub(crate) struct Frame {
+pub struct Frame {
     pub opstack: OperandStack,
     pub locals: Locals,
     pub entry: u64,
     pub ret: u64,
 }
 
-pub(crate) enum FrameResult {
+pub enum FrameResult {
     Call(Frame),
     Ret,
     RetW,

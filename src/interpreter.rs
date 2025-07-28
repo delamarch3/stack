@@ -36,6 +36,10 @@ impl Interpreter {
         self.frames.last().map(|f| &f.opstack)
     }
 
+    pub fn frames(&self) -> &Vec<Frame> {
+        &self.frames
+    }
+
     pub fn run(&mut self) -> Result<()> {
         while let Some(mut current) = self.frames.pop() {
             let fr = current.run(&mut self.pc)?;

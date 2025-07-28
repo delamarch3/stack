@@ -166,7 +166,8 @@ impl Output {
     }
 
     pub fn fmt_text(&self, f: &mut impl Write) -> Result<HashMap<u64, usize>> {
-        const TAB_SPACES: usize = 4;
+        const POS_WIDTH: usize = 4;
+        const INST_WIDTH: usize = 6;
 
         fn fmt_with_operand<T: Number>(
             f: &mut impl Write,
@@ -174,7 +175,7 @@ impl Output {
             labels: &HashMap<u64, String>,
             word: &str,
         ) -> std::fmt::Result {
-            write!(f, "{} ", word)?;
+            write!(f, "{word:INST_WIDTH$} ")?;
             let operand = pc.next::<T>().map_err(|_| std::fmt::Error)?;
             write!(f, "{operand}")?;
 
@@ -207,7 +208,7 @@ impl Output {
             }
 
             lines.insert(pos, line);
-            write!(f, "{:TAB_SPACES$}{}: ", "", pos)?;
+            write!(f, "{pos:POS_WIDTH$}: ")?;
 
             match op {
                 Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, &self.labels, "push")?,
@@ -299,17 +300,17 @@ add:
 8: 61 62 63 00 4c 00 00 00 |abc.L...|
 
 main:
-    16: push.d 8 ; record
-    25: push 22
-    30: push 33
-    35: call 54 ; add
-    44: store 0
-    53: ret
+  16: push.d 8 ; record
+  25: push   22
+  30: push   33
+  35: call   54 ; add
+  44: store  0
+  53: ret
 add:
-    54: load 0
-    63: load 1
-    72: add
-    73: ret
+  54: load   0
+  63: load   1
+  72: add
+  73: ret
 ";
 
         assert_eq!(want, have);
