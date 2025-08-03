@@ -60,15 +60,53 @@ fn main() -> Result<()> {
             },
             "stack" => match interpreter {
                 Some(ref i) => {
-                    writeln!(stdout, "{}", i.opstack().unwrap())?;
+                    writeln!(stdout, "{}", i.frames().last().unwrap().opstack)?;
                 }
                 None => writeln!(stdout, "no program currently running")?,
             },
-            "c" | "continue" => todo!(),
+            "c" | "continue" => match interpreter {
+                Some(ref mut i) => {
+                    i.run()?;
+                }
+                None => writeln!(stdout, "no program currently running")?,
+            },
+            // TODO: parse args
             "b" | "break" => todo!(),
-            "v" | "var" => todo!(),
-            "p" | "peek" => todo!(),
-            "bt" | "backtrace" => todo!(),
+            "v" | "var" => match interpreter {
+                Some(ref i) => {
+                    writeln!(
+                        stdout,
+                        "{}",
+                        i.frames().last().unwrap().locals.read::<i32>(0)
+                    )?;
+                }
+                None => writeln!(stdout, "no program currently running")?,
+            },
+            "p" | "peek" => match interpreter {
+                Some(ref i) => {
+                    writeln!(
+                        stdout,
+                        "{:?}",
+                        i.frames().last().unwrap().opstack.peek::<i32>()
+                    )?;
+                }
+                None => writeln!(stdout, "no program currently running")?,
+            },
+            "bt" | "backtrace" => match interpreter {
+                Some(ref i) => {
+                    const TAB: usize = 2;
+                    let mut tab = 0;
+                    for (i, frame) in i.frames().iter().enumerate() {
+                        writeln!(
+                            stdout,
+                            "{:tab$}\x1b[94mFrame #{}\x1b[0m: Entry: {} Return: {}",
+                            "", i, frame.entry, frame.ret
+                        )?;
+                        tab += TAB;
+                    }
+                }
+                None => writeln!(stdout, "no program currently running")?,
+            },
             "dis" | "disassembly" => write!(stdout, "{output}")?,
             cmd => write!(stdout, "invalid command: {cmd}\n")?,
         }
@@ -96,7 +134,11 @@ fn fmt_out(
         end = lines.len()
     }
 
-    writeln!(f, "\x1b[94mFrame #{}\x1b[0m", interpreter.frames().len())?;
+    writeln!(
+        f,
+        "\x1b[94mFrame #{}\x1b[0m",
+        interpreter.frames().len() - 1
+    )?;
     for i in start..end {
         if i == line {
             writeln!(f, "\x1b[93m{POINTER:>WIDTH$}{}\x1b[0m", lines[i])?;

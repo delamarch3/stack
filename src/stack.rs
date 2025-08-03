@@ -49,6 +49,16 @@ impl OperandStack {
         self.idx = 0;
     }
 
+    pub fn peek<T: Number>(&self) -> Option<T> {
+        if self.idx < T::SIZE / 4 {
+            return None;
+        }
+
+        let idx = self.idx - T::SIZE.max(4) / 4;
+        let offset = idx * SLOT_SIZE;
+        Some(T::from_le_bytes(&self.stack[offset..offset + T::SIZE]))
+    }
+
     pub fn push<T: Number>(&mut self, value: T) {
         let offset = self.idx * SLOT_SIZE;
         self.idx += T::SIZE.max(4) / 4;
@@ -56,6 +66,7 @@ impl OperandStack {
         if T::SIZE < 4 {
             self.stack[offset..offset + SLOT_SIZE].copy_from_slice(&[0u8; 4]);
         }
+
         self.stack[offset..offset + T::SIZE].copy_from_slice(value.to_le_bytes().as_ref());
     }
 

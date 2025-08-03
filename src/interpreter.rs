@@ -32,10 +32,6 @@ impl Interpreter {
         self.pc.position()
     }
 
-    pub fn opstack(&self) -> Option<&OperandStack> {
-        self.frames.last().map(|f| &f.opstack)
-    }
-
     pub fn frames(&self) -> &Vec<Frame> {
         &self.frames
     }

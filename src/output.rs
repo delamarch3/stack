@@ -168,6 +168,7 @@ impl Output {
     pub fn fmt_text(&self, f: &mut impl Write) -> Result<HashMap<u64, usize>> {
         const POS_WIDTH: usize = 4;
         const INST_WIDTH: usize = 6;
+        const OP_WIDTH: usize = 4;
 
         fn fmt_with_operand<T: Number>(
             f: &mut impl Write,
@@ -177,7 +178,7 @@ impl Output {
         ) -> std::fmt::Result {
             write!(f, "{word:INST_WIDTH$} ")?;
             let operand = pc.next::<T>().map_err(|_| std::fmt::Error)?;
-            write!(f, "{operand}")?;
+            write!(f, "{operand:OP_WIDTH$}")?;
 
             // Check if the operand is also a label offset. It may not be so it is not directly
             // substituted
@@ -300,15 +301,15 @@ add:
 8: 61 62 63 00 4c 00 00 00 |abc.L...|
 
 main:
-  16: push.d 8 ; record
-  25: push   22
-  30: push   33
-  35: call   54 ; add
-  44: store  0
+  16: push.d    8 ; record
+  25: push     22
+  30: push     33
+  35: call     54 ; add
+  44: store     0
   53: ret
 add:
-  54: load   0
-  63: load   1
+  54: load      0
+  63: load      1
   72: add
   73: ret
 ";
