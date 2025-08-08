@@ -54,6 +54,10 @@ impl Output {
         }
     }
 
+    pub fn labels(&self) -> &HashMap<u64, String> {
+        &self.labels
+    }
+
     pub fn deserialise<R: Read>(mut r: R) -> Result<Self> {
         let entry = r.read_u64()?;
 

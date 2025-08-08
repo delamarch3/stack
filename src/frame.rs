@@ -8,7 +8,9 @@ use crate::{Number, Result};
 pub struct Frame {
     pub opstack: OperandStack,
     pub locals: Locals,
+    /// The position of the first instruction of the frame
     pub entry: u64,
+    /// The position of the first instruction after the call
     pub ret: u64,
 }
 

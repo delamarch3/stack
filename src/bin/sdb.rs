@@ -41,7 +41,7 @@ fn main() -> Result<()> {
                     let int = Interpreter::new(&output)?;
                     let position = int.position();
                     let line = lines[&position];
-                    fmt_out(&mut stdout, &int, &text, line)?;
+                    fmt_out(&mut stdout, &int, &output, &text, line)?;
                     interpreter = Some(int)
                 }
             },
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
                     };
 
                     let line = lines[&position];
-                    fmt_out(&mut stdout, &int, &text, line)?;
+                    fmt_out(&mut stdout, &int, &output, &text, line)?;
                 }
                 None => writeln!(stdout, "no program currently running")?,
             },
@@ -99,8 +99,12 @@ fn main() -> Result<()> {
                     for (i, frame) in i.frames().iter().enumerate() {
                         writeln!(
                             stdout,
-                            "{:tab$}\x1b[94mFrame #{}\x1b[0m: Entry: {} Return: {}",
-                            "", i, frame.entry, frame.ret
+                            "{:tab$}\x1b[94mFrame #{} `{}`\x1b[0m: Entry: {} Return: {}",
+                            "",
+                            i,
+                            output.labels()[&frame.entry],
+                            frame.entry,
+                            frame.ret
                         )?;
                         tab += TAB;
                     }
@@ -121,26 +125,30 @@ fn main() -> Result<()> {
 fn fmt_out(
     f: &mut impl std::io::Write,
     interpreter: &Interpreter,
+    output: &Output,
     lines: &Vec<&str>,
-    line: usize,
+    start: usize,
 ) -> Result<()> {
     const PAD_LINES: usize = 3;
     const POINTER: &str = "->";
     const WIDTH: usize = 2;
 
-    let start = line.saturating_sub(PAD_LINES);
-    let mut end = line + 1 + PAD_LINES;
+    let mut end = start + 1 + PAD_LINES;
     if end >= lines.len() {
         end = lines.len()
     }
 
+    let frames = interpreter.frames();
+    let entry = frames.last().unwrap().entry;
+
     writeln!(
         f,
-        "\x1b[94mFrame #{}\x1b[0m",
-        interpreter.frames().len() - 1
+        "\x1b[94mFrame #{} `{}`\x1b[0m",
+        interpreter.frames().len() - 1,
+        output.labels()[&entry]
     )?;
     for i in start..end {
-        if i == line {
+        if i == start {
             writeln!(f, "\x1b[93m{POINTER:>WIDTH$}{}\x1b[0m", lines[i])?;
             continue;
         }
