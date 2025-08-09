@@ -5,6 +5,8 @@ use crate::program::Program;
 use crate::stack::OperandStack;
 use crate::Result;
 
+const MAIN_RETURN: u64 = 0;
+
 pub struct Interpreter {
     entry: u64,
     pc: Program<Vec<u8>>,
@@ -18,14 +20,29 @@ impl Interpreter {
         let entry = pc.next::<u64>()?;
         pc.set_position(entry);
 
-        let opstack = OperandStack::default();
-        let locals = Locals::default();
-
-        let ret = 0;
-        let main = Frame::new(locals, opstack, entry, ret);
+        let main = Frame::new(
+            Locals::default(),
+            OperandStack::default(),
+            entry,
+            MAIN_RETURN,
+        );
         let frames = vec![main];
 
         Ok(Self { entry, pc, frames })
+    }
+
+    pub fn reset(&mut self) {
+        self.pc.set_position(self.entry);
+        self.frames.clear();
+
+        let main = Frame::new(
+            Locals::default(),
+            OperandStack::default(),
+            self.entry,
+            MAIN_RETURN,
+        );
+
+        self.frames.push(main)
     }
 
     pub fn position(&self) -> u64 {
@@ -47,7 +64,7 @@ impl Interpreter {
         Ok(())
     }
 
-    // Results None if returning from the main routine
+    /// Results None if returning from the main routine
     pub fn step(&mut self) -> Result<Option<u64>> {
         let Some(mut current) = self.frames.pop() else {
             unreachable!()
@@ -64,7 +81,7 @@ impl Interpreter {
         Ok(Some(self.pc.position()))
     }
 
-    // Returns true if returning from the main routine
+    /// Returns true if returning from the main routine
     fn handle_frame_result(&mut self, fr: FrameResult, mut current: Frame) -> Result<bool> {
         let last = self.frames.len().saturating_sub(1);
         let main = self.entry == current.entry;

@@ -4,8 +4,16 @@ use crate::interpreter::Interpreter;
 use crate::output::Output;
 use crate::Result;
 
+#[derive(Debug, Default)]
+enum State {
+    #[default]
+    Off,
+    Running,
+}
+
 pub struct Debugger<R, W> {
-    interpreter: Option<Interpreter>,
+    state: State,
+    interpreter: Interpreter,
     output: Output,
     r: Lines<R>,
     w: W,
@@ -16,15 +24,17 @@ where
     R: BufRead,
     W: Write,
 {
-    pub fn new(output: Output, r: Lines<R>, w: W) -> Self {
-        let interpreter = None;
+    pub fn new(output: Output, r: Lines<R>, w: W) -> Result<Self> {
+        let interpreter = Interpreter::new(&output)?;
+        let state = State::default();
 
-        Self {
+        Ok(Self {
+            state,
             interpreter,
             output,
             r,
             w,
-        }
+        })
     }
 
     pub fn run(&mut self) -> Result<()> {

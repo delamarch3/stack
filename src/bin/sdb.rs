@@ -8,6 +8,11 @@ use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+enum State {
+    Off,
+    Running,
+}
+
 fn main() -> Result<()> {
     const PROMPT: &[u8; 15] = b"\x1b[90m(sdb)\x1b[0m ";
 
@@ -20,7 +25,8 @@ fn main() -> Result<()> {
 
     let file = File::open(path)?;
     let output = Output::deserialise(file)?;
-    let mut interpreter = None;
+    let mut state = State::Off;
+    let mut interpreter = Interpreter::new(&output)?;
 
     let mut text = String::new();
     let lines = output.fmt_text(&mut text)?;
@@ -35,82 +41,70 @@ fn main() -> Result<()> {
         let line = line?;
 
         match line.as_str() {
-            "r" | "run" => match interpreter {
-                Some(_) => writeln!(stdout, "program currently running...")?,
-                None => {
-                    let int = Interpreter::new(&output)?;
-                    let position = int.position();
+            "r" | "run" => match state {
+                State::Running => writeln!(stdout, "program currently running")?,
+                State::Off => {
+                    interpreter.reset();
+                    let position = interpreter.position();
                     let line = lines[&position];
-                    fmt_out(&mut stdout, &int, &output, &text, line)?;
-                    interpreter = Some(int)
+                    fmt_out(&mut stdout, &interpreter, &output, &text, line)?;
+                    state = State::Running;
                 }
             },
-            "s" | "step" => match &mut interpreter {
-                Some(int) => {
-                    let Some(position) = int.step()? else {
+            "s" | "step" => match state {
+                State::Running => {
+                    let Some(position) = interpreter.step()? else {
                         writeln!(stdout, "program finished running")?;
-                        interpreter = None;
                         continue;
                     };
 
                     let line = lines[&position];
-                    fmt_out(&mut stdout, &int, &output, &text, line)?;
+                    fmt_out(&mut stdout, &interpreter, &output, &text, line)?;
                 }
-                None => writeln!(stdout, "no program currently running")?,
+                State::Off => writeln!(stdout, "no program currently running")?,
             },
-            "stack" => match interpreter {
-                Some(ref i) => {
-                    writeln!(stdout, "{}", i.frames().last().unwrap().opstack)?;
+            "stack" => {
+                writeln!(stdout, "{}", interpreter.frames().last().unwrap().opstack)?;
+            }
+            "c" | "continue" => match state {
+                State::Running => {
+                    interpreter.run()?;
+                    state = State::Off;
                 }
-                None => writeln!(stdout, "no program currently running")?,
-            },
-            "c" | "continue" => match interpreter {
-                Some(ref mut i) => {
-                    i.run()?;
-                }
-                None => writeln!(stdout, "no program currently running")?,
+                State::Off => writeln!(stdout, "no program currently running")?,
             },
             // TODO: parse args
             "b" | "break" => todo!(),
-            "v" | "var" => match interpreter {
-                Some(ref i) => {
+            "v" | "var" => {
+                writeln!(
+                    stdout,
+                    "{}",
+                    interpreter.frames().last().unwrap().locals.read::<i32>(0)
+                )?;
+            }
+            "p" | "peek" => {
+                writeln!(
+                    stdout,
+                    "{:?}",
+                    interpreter.frames().last().unwrap().opstack.peek::<i32>()
+                )?;
+            }
+            "bt" | "backtrace" => {
+                const TAB: usize = 2;
+                let mut tab = 0;
+                for (i, frame) in interpreter.frames().iter().enumerate() {
                     writeln!(
                         stdout,
-                        "{}",
-                        i.frames().last().unwrap().locals.read::<i32>(0)
+                        "{:tab$}\x1b[94mFrame #{} `{}`\x1b[0m: Entry: {} Return: {}",
+                        "",
+                        i,
+                        output.labels()[&frame.entry],
+                        frame.entry,
+                        frame.ret
                     )?;
+                    tab += TAB;
                 }
-                None => writeln!(stdout, "no program currently running")?,
-            },
-            "p" | "peek" => match interpreter {
-                Some(ref i) => {
-                    writeln!(
-                        stdout,
-                        "{:?}",
-                        i.frames().last().unwrap().opstack.peek::<i32>()
-                    )?;
-                }
-                None => writeln!(stdout, "no program currently running")?,
-            },
-            "bt" | "backtrace" => match interpreter {
-                Some(ref i) => {
-                    const TAB: usize = 2;
-                    let mut tab = 0;
-                    for (i, frame) in i.frames().iter().enumerate() {
-                        writeln!(
-                            stdout,
-                            "{:tab$}\x1b[94mFrame #{} `{}`\x1b[0m: Entry: {} Return: {}",
-                            "",
-                            i,
-                            output.labels()[&frame.entry],
-                            frame.entry,
-                            frame.ret
-                        )?;
-                        tab += TAB;
-                    }
-                }
-                None => writeln!(stdout, "no program currently running")?,
-            },
+            }
             "dis" | "disassembly" => write!(stdout, "{output}")?,
             cmd => write!(stdout, "invalid command: {cmd}\n")?,
         }
@@ -129,11 +123,11 @@ fn fmt_out(
     lines: &Vec<&str>,
     start: usize,
 ) -> Result<()> {
-    const PAD_LINES: usize = 3;
+    const LOOK_FORWARD: usize = 4;
     const POINTER: &str = "->";
     const WIDTH: usize = 2;
 
-    let mut end = start + 1 + PAD_LINES;
+    let mut end = start + LOOK_FORWARD;
     if end >= lines.len() {
         end = lines.len()
     }
