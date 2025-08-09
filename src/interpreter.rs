@@ -64,6 +64,21 @@ impl Interpreter {
         Ok(())
     }
 
+    /// Returns true if returning from the main routine
+    pub fn run_until(&mut self, until: u64) -> Result<bool> {
+        loop {
+            let Some(position) = self.step()? else {
+                return Ok(true);
+            };
+
+            if position >= until {
+                break;
+            }
+        }
+
+        Ok(false)
+    }
+
     /// Results None if returning from the main routine
     pub fn step(&mut self) -> Result<Option<u64>> {
         let Some(mut current) = self.frames.pop() else {

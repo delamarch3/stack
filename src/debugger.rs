@@ -1,8 +1,11 @@
-use std::io::{BufRead, Lines, Write};
+use std::collections::{HashMap, HashSet};
+use std::io::Write;
 
+use crate::frame::Frame;
 use crate::interpreter::Interpreter;
 use crate::output::Output;
-use crate::Result;
+use crate::stack::OperandStack;
+use crate::{Number, Result};
 
 #[derive(Debug, Default)]
 enum State {
@@ -11,50 +14,163 @@ enum State {
     Running,
 }
 
-pub struct Debugger<R, W> {
+pub struct Debugger {
     state: State,
     interpreter: Interpreter,
     output: Output,
-    r: Lines<R>,
-    w: W,
+    breakpoints: HashSet<u64>,
+    /// The lines from the disassembly
+    text: Vec<String>,
+    /// Maps a position from the program to a line in [`Debugger::text`]
+    lines: HashMap<u64, usize>,
 }
 
-impl<R, W> Debugger<R, W>
-where
-    R: BufRead,
-    W: Write,
-{
-    pub fn new(output: Output, r: Lines<R>, w: W) -> Result<Self> {
+impl Debugger {
+    pub fn new(output: Output) -> Result<Self> {
         let interpreter = Interpreter::new(&output)?;
         let state = State::default();
+        let breakpoints = HashSet::new();
+
+        let mut text = String::new();
+        let lines = output.fmt_text(&mut text)?;
+        let text = text.lines().map(String::from).collect();
 
         Ok(Self {
             state,
             interpreter,
             output,
-            r,
-            w,
+            breakpoints,
+            text,
+            lines,
         })
     }
 
-    pub fn run(&mut self) -> Result<()> {
-        let None = self.interpreter else {
-            return writeln!(self.w, "program currently running").map_err(Into::into);
-        };
+    pub fn fmt_line(&self, w: &mut impl Write, position: u64) -> Result<()> {
+        const LOOK_FORWARD: usize = 4;
+        const POINTER: &str = "->";
+        const WIDTH: usize = 2;
 
-        self.interpreter = Some(Interpreter::new(&self.output)?);
+        let start = self.lines[&position];
+
+        let mut end = start + LOOK_FORWARD;
+        if end >= self.lines.len() {
+            end = self.lines.len()
+        }
+
+        let frames = self.interpreter.frames();
+        let entry = frames.last().unwrap().entry;
+
+        writeln!(
+            w,
+            "\x1b[94mFrame #{} `{}`\x1b[0m",
+            frames.len() - 1,
+            self.output.labels()[&entry]
+        )?;
+
+        for i in start..end {
+            if i == start {
+                writeln!(w, "\x1b[93m{POINTER:>WIDTH$}{}\x1b[0m", self.text[i])?;
+                continue;
+            }
+
+            writeln!(w, "{:WIDTH$}{}", "", self.text[i])?;
+        }
 
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<()> {
-        let Some(ref mut interpreter) = self.interpreter else {
-            return writeln!(self.w, "no program currently running").map_err(Into::into);
-        };
+    pub fn fmt_backtrace(&self, w: &mut impl Write) -> Result<()> {
+        const TAB: usize = 2;
 
-        // let position = interpreter.step()?;
-        // writeln!(self.w, "New position: {position}")?;
+        let mut tab = 0;
+        for (i, frame) in self.interpreter.frames().iter().enumerate() {
+            writeln!(
+                w,
+                "{:tab$}\x1b[94mFrame #{} `{}`\x1b[0m: Entry: {} Return: {}",
+                "",
+                i,
+                self.output.labels()[&frame.entry],
+                frame.entry,
+                frame.ret
+            )?;
+            tab += TAB;
+        }
 
         Ok(())
+    }
+
+    pub fn run(&mut self) -> Result<u64> {
+        if matches!(self.state, State::Running) {
+            Err("program is currently running")?
+        }
+
+        self.interpreter.reset();
+        let position = self.interpreter.position();
+        self.state = State::Running;
+
+        Ok(position)
+    }
+
+    pub fn step(&mut self) -> Result<u64> {
+        if matches!(self.state, State::Off) {
+            Err("no program currently running")?
+        }
+
+        let Some(position) = self.interpreter.step()? else {
+            self.state = State::Off;
+            Err("program finished running")?
+        };
+
+        Ok(position)
+    }
+
+    pub fn r#continue(&mut self) -> Result<()> {
+        if matches!(self.state, State::Off) {
+            Err("no prgram currently running")?
+        }
+
+        let current_position = self.interpreter.position();
+        let breakpoint = self.breakpoints.iter().find(|&&bp| bp > current_position);
+        let finished = match breakpoint {
+            Some(&bp) => self.interpreter.run_until(bp)?,
+            None => {
+                self.interpreter.run()?;
+                true
+            }
+        };
+        if finished {
+            self.state = State::Off;
+        }
+
+        Ok(())
+    }
+
+    pub fn set_breakpoint(&mut self, position: u64) -> Result<()> {
+        match self.lines.get(&position) {
+            Some(_) => self.breakpoints.insert(position),
+            None => Err("invalid breakpoint, position must be at the start of an instruction")?,
+        };
+
+        Ok(())
+    }
+
+    pub fn output(&self) -> &Output {
+        &self.output
+    }
+
+    pub fn stack(&self) -> &OperandStack {
+        &self.current_frame().opstack
+    }
+
+    pub fn variable<N: Number>(&self, i: u64) -> N {
+        self.current_frame().locals.read(i)
+    }
+
+    pub fn peek<N: Number>(&self) -> Option<N> {
+        self.current_frame().opstack.peek()
+    }
+
+    fn current_frame(&self) -> &Frame {
+        &self.interpreter.frames().last().unwrap()
     }
 }
