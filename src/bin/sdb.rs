@@ -8,6 +8,19 @@ use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+// TODO: list breakpoints
+enum Command {
+    Run,
+    Step,
+    Continue,
+    Stack,
+    Peek,
+    Break(u64),
+    Variable(u64),
+    Backtrace,
+    Disassembly,
+}
+
 fn main() -> Result<()> {
     const PROMPT: &[u8; 15] = b"\x1b[90m(sdb)\x1b[0m ";
 
@@ -25,13 +38,21 @@ fn main() -> Result<()> {
     let mut stdout = stdout();
     let mut stdin = stdin().lines();
 
+    // TODO: handle I/O better
+    // TODO: handle continuing to a breakpoint better
     stdout.write_all(PROMPT)?;
     stdout.flush()?;
     while let Some(line) = stdin.next() {
         let line = line?;
+        let Ok(command) = parse_command(&line) else {
+            writeln!(stdout, "invalid command")?;
+            stdout.write_all(PROMPT)?;
+            stdout.flush()?;
+            continue;
+        };
 
-        match line.as_str() {
-            "r" | "run" => 'run: {
+        match command {
+            Command::Run => 'run: {
                 let position = match debugger.run() {
                     Ok(p) => p,
                     Err(e) => {
@@ -42,7 +63,7 @@ fn main() -> Result<()> {
 
                 debugger.fmt_line(&mut stdout, position)?;
             }
-            "s" | "step" | "" => 'step: {
+            Command::Step => 'step: {
                 let position = match debugger.step() {
                     Ok(p) => p,
                     Err(e) => {
@@ -53,27 +74,19 @@ fn main() -> Result<()> {
 
                 debugger.fmt_line(&mut stdout, position)?;
             }
-            "stack" => {
-                writeln!(stdout, "{}", debugger.stack())?;
-            }
-            "c" | "continue" => {
+            Command::Continue => {
                 if let Err(e) = debugger.r#continue() {
                     writeln!(stdout, "{e}")?;
                 }
             }
-            // TODO: parse args
-            "b" | "break" => todo!(),
-            "v" | "var" => {
-                writeln!(stdout, "{}", debugger.variable::<i32>(0))?;
+            Command::Stack => writeln!(stdout, "{}", debugger.stack())?,
+            Command::Peek => writeln!(stdout, "{:?}", debugger.peek::<i32>())?,
+            Command::Break(position) => debugger.set_breakpoint(position)?,
+            Command::Variable(variable) => {
+                writeln!(stdout, "{}", debugger.variable::<i32>(variable))?;
             }
-            "p" | "peek" => {
-                writeln!(stdout, "{:?}", debugger.peek::<i32>())?;
-            }
-            "bt" | "backtrace" => {
-                debugger.fmt_backtrace(&mut stdout)?;
-            }
-            "dis" | "disassembly" => write!(stdout, "{}", debugger.output())?,
-            cmd => writeln!(stdout, "invalid command: {cmd}")?,
+            Command::Backtrace => debugger.fmt_backtrace(&mut stdout)?,
+            Command::Disassembly => write!(stdout, "{}", debugger.output())?,
         }
 
         stdout.write_all(PROMPT)?;
@@ -81,4 +94,35 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn parse_command(line: &str) -> Result<Command> {
+    let mut parts = line.split_whitespace();
+
+    let command = match parts.next().unwrap_or_default() {
+        "r" | "run" => Command::Run,
+        "s" | "step" | "" => Command::Step,
+        "st" | "stack" => Command::Stack,
+        "c" | "continue" => Command::Continue,
+        "b" | "break" => {
+            let Some(position) = parts.next() else {
+                Err("could not parse argument")?
+            };
+            let position = position.parse::<u64>()?;
+            Command::Break(position)
+        }
+        "v" | "var" => {
+            let Some(variable) = parts.next() else {
+                Err("could not parse argument")?
+            };
+            let variable = variable.parse::<u64>()?;
+            Command::Variable(variable)
+        }
+        "p" | "peek" => Command::Peek,
+        "bt" | "backtrace" => Command::Backtrace,
+        "dis" | "disassembly" => Command::Disassembly,
+        cmd => Err(format!("invalid command: {cmd}"))?,
+    };
+
+    Ok(command)
 }
