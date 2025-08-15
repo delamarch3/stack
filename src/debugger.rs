@@ -80,7 +80,7 @@ impl Debugger {
     }
 
     pub fn fmt_backtrace(&self, w: &mut impl Write) -> Result<()> {
-        const TAB: usize = 2;
+        const TAB_SPACES: usize = 2;
 
         let mut tab = 0;
         for (i, frame) in self.interpreter.frames().iter().enumerate() {
@@ -93,8 +93,16 @@ impl Debugger {
                 frame.entry,
                 frame.ret
             )?;
-            tab += TAB;
+            tab += TAB_SPACES;
         }
+
+        Ok(())
+    }
+
+    pub fn fmt_breakpoints(&self, w: &mut impl Write) -> Result<()> {
+        self.breakpoints
+            .iter()
+            .try_for_each(|bp| writeln!(w, "{}", self.text[self.lines[bp]]))?;
 
         Ok(())
     }
@@ -124,7 +132,7 @@ impl Debugger {
         Ok(position)
     }
 
-    pub fn r#continue(&mut self) -> Result<()> {
+    pub fn r#continue(&mut self) -> Result<u64> {
         if matches!(self.state, State::Off) {
             Err("no prgram currently running")?
         }
@@ -142,7 +150,7 @@ impl Debugger {
             self.state = State::Off;
         }
 
-        Ok(())
+        Ok(self.interpreter.position())
     }
 
     pub fn set_breakpoint(&mut self, position: u64) -> Result<()> {
@@ -152,6 +160,10 @@ impl Debugger {
         };
 
         Ok(())
+    }
+
+    pub fn delete_breakpoint(&mut self, position: u64) {
+        self.lines.remove(&position);
     }
 
     pub fn output(&self) -> &Output {
