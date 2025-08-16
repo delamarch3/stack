@@ -8,6 +8,7 @@ use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+// TODO: BreakPosition/BreakLabel
 enum Command {
     Run,
     Step,
@@ -39,7 +40,6 @@ fn main() -> Result<()> {
     let mut stdout = stdout();
     let mut stdin = stdin().lines();
 
-    // TODO: handle continuing to a breakpoint better
     stdout.write_fmt(format_args!("{PROMPT}"))?;
     stdout.flush()?;
     while let Some(line) = stdin.next() {

@@ -138,7 +138,7 @@ impl Debugger {
         }
 
         let current_position = self.interpreter.position();
-        let breakpoint = self.breakpoints.iter().find(|&&bp| bp > current_position);
+        let breakpoint = self.breakpoints.iter().find(|&&bp| bp >= current_position);
         let finished = match breakpoint {
             Some(&bp) => self.interpreter.run_until(bp)?,
             None => {
@@ -150,6 +150,7 @@ impl Debugger {
             self.state = State::Off;
         }
 
+        dbg!(self.interpreter.position());
         Ok(self.interpreter.position())
     }
 

@@ -16,10 +16,12 @@ pub struct Frame {
 
 pub enum FrameResult {
     Call(Frame),
-    Ret,
-    RetW,
-    RetD,
-    Panic,
+
+    // The following results hold the position of the corresponding instruction
+    Ret(u64),
+    RetW(u64),
+    RetD(u64),
+    Panic(u64),
 }
 
 impl Frame {
@@ -41,6 +43,8 @@ impl Frame {
     }
 
     pub fn step(&mut self, pc: &mut Program<Vec<u8>>) -> Result<Option<FrameResult>> {
+        let position = pc.position();
+
         match pc.next_op()? {
             Bytecode::Push => self.push::<i32>(pc)?,
             Bytecode::PushD => self.push::<i64>(pc)?,
@@ -77,10 +81,10 @@ impl Frame {
             Bytecode::Dup => self.opstack.dup::<i32>(),
             Bytecode::DupD => self.opstack.dup::<i64>(),
             Bytecode::Call => return self.call(pc).map(Some),
-            Bytecode::Panic => return Ok(Some(FrameResult::Panic)),
-            Bytecode::Ret => return Ok(Some(FrameResult::Ret)),
-            Bytecode::RetW => return Ok(Some(FrameResult::RetW)),
-            Bytecode::RetD => return Ok(Some(FrameResult::RetD)),
+            Bytecode::Panic => return Ok(Some(FrameResult::Panic(position))),
+            Bytecode::Ret => return Ok(Some(FrameResult::Ret(position))),
+            Bytecode::RetW => return Ok(Some(FrameResult::RetW(position))),
+            Bytecode::RetD => return Ok(Some(FrameResult::RetD(position))),
         }
 
         Ok(None)

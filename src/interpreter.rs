@@ -7,6 +7,11 @@ use crate::Result;
 
 const MAIN_RETURN: u64 = 0;
 
+pub enum Return {
+    Main,
+    Other,
+}
+
 pub struct Interpreter {
     entry: u64,
     pc: Program<Vec<u8>>,
@@ -53,11 +58,13 @@ impl Interpreter {
         &self.frames
     }
 
+    /// Returns the position of the return instruction
     pub fn run(&mut self) -> Result<()> {
         while let Some(mut current) = self.frames.pop() {
             let fr = current.run(&mut self.pc)?;
-            if self.handle_frame_result(fr, current)? {
-                break;
+            match self.handle_frame_result(fr, current)? {
+                Some(Return::Main) => break,
+                _ => {}
             }
         }
 
@@ -86,8 +93,9 @@ impl Interpreter {
         };
 
         if let Some(fr) = current.step(&mut self.pc)? {
-            if self.handle_frame_result(fr, current)? {
-                return Ok(None);
+            match self.handle_frame_result(fr, current)? {
+                Some(Return::Main) => return Ok(None),
+                _ => {}
             }
         } else {
             self.frames.push(current);
@@ -96,39 +104,48 @@ impl Interpreter {
         Ok(Some(self.pc.position()))
     }
 
-    /// Returns true if returning from the main routine
-    fn handle_frame_result(&mut self, fr: FrameResult, mut current: Frame) -> Result<bool> {
+    fn handle_frame_result(
+        &mut self,
+        fr: FrameResult,
+        mut current: Frame,
+    ) -> Result<Option<Return>> {
         let last = self.frames.len().saturating_sub(1);
         let main = self.entry == current.entry;
 
-        let return_main = match fr {
+        let ret = match fr {
             FrameResult::Call(next) => {
                 self.pc.set_position(next.entry);
                 self.frames.push(current);
                 self.frames.push(next);
-                false
+                None
             }
-            FrameResult::Ret | FrameResult::RetW | FrameResult::RetD if main => {
+            FrameResult::Ret(position)
+            | FrameResult::RetW(position)
+            | FrameResult::RetD(position)
+                if main =>
+            {
+                // Make it appear as if the pc is pointing to the return instruction
+                self.pc.set_position(position);
                 self.frames.push(current);
-                true
+                Some(Return::Main)
             }
-            FrameResult::Ret => {
+            FrameResult::Ret(_) => {
                 self.pc.set_position(current.ret);
-                false
+                Some(Return::Other)
             }
-            FrameResult::RetW => {
+            FrameResult::RetW(_) => {
                 self.pc.set_position(current.ret);
                 self.frames[last].opstack.push::<i32>(current.opstack.pop());
-                false
+                Some(Return::Other)
             }
-            FrameResult::RetD => {
+            FrameResult::RetD(_) => {
                 self.pc.set_position(current.ret);
                 self.frames[last].opstack.push::<i64>(current.opstack.pop());
-                false
+                Some(Return::Other)
             }
-            FrameResult::Panic => Err("panic")?,
+            FrameResult::Panic(_) => Err("panic")?,
         };
 
-        Ok(return_main)
+        Ok(ret)
     }
 }
