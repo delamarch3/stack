@@ -53,8 +53,8 @@ impl Debugger {
         let start = self.lines[&position];
 
         let mut end = start + LOOK_FORWARD;
-        if end >= self.lines.len() {
-            end = self.lines.len()
+        if end >= self.text.len() {
+            end = self.text.len()
         }
 
         let frames = self.interpreter.frames();
@@ -150,7 +150,6 @@ impl Debugger {
             self.state = State::Off;
         }
 
-        dbg!(self.interpreter.position());
         Ok(self.interpreter.position())
     }
 
