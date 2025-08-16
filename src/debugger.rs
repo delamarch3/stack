@@ -138,6 +138,7 @@ impl Debugger {
         }
 
         let current_position = self.interpreter.position();
+        // TODO: this doesn't work well for breakpoints set later in the program:
         let breakpoint = self.breakpoints.iter().find(|&&bp| bp >= current_position);
         let finished = match breakpoint {
             Some(&bp) => self.interpreter.run_until(bp)?,
@@ -160,6 +161,20 @@ impl Debugger {
         };
 
         Ok(())
+    }
+
+    pub fn set_label_breakpoint(&mut self, label: &str) -> Result<()> {
+        let Some(position) = self
+            .output
+            .labels()
+            .iter()
+            .find(|(_, have)| label == have.as_str())
+            .map(|(&position, _)| position)
+        else {
+            Err("invalid label, could not find position")?
+        };
+
+        self.set_breakpoint(position)
     }
 
     pub fn delete_breakpoint(&mut self, position: u64) {

@@ -8,14 +8,14 @@ use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-// TODO: BreakPosition/BreakLabel
 enum Command {
     Run,
     Step,
     Continue,
     Stack,
     Peek,
-    Break(u64),
+    BreakPosition(u64),
+    BreakLabel(String),
     Delete(u64),
     List,
     Variable(u64),
@@ -74,7 +74,8 @@ fn parse_evaluate(stdout: &mut Stdout, debugger: &mut Debugger, line: String) ->
         }
         Command::Stack => writeln!(stdout, "{}", debugger.stack())?,
         Command::Peek => writeln!(stdout, "{:?}", debugger.peek::<i32>())?,
-        Command::Break(position) => debugger.set_breakpoint(position)?,
+        Command::BreakPosition(position) => debugger.set_breakpoint(position)?,
+        Command::BreakLabel(label) => debugger.set_label_breakpoint(&label)?,
         Command::Delete(position) => debugger.delete_breakpoint(position),
         Command::List => debugger.fmt_breakpoints(stdout)?,
         Command::Variable(variable) => {
@@ -96,11 +97,14 @@ fn parse_command(line: &str) -> Result<Command> {
         "st" | "stack" => Command::Stack,
         "c" | "continue" => Command::Continue,
         "b" | "break" => {
-            let Some(position) = parts.next() else {
+            let Some(arg) = parts.next() else {
                 Err("could not parse argument")?
             };
-            let position = position.parse::<u64>()?;
-            Command::Break(position)
+
+            match arg.parse::<u64>() {
+                Ok(position) => Command::BreakPosition(position),
+                Err(_) => Command::BreakLabel(arg.into()),
+            }
         }
         "d" => {
             let Some(position) = parts.next() else {
