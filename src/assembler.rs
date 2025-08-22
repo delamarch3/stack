@@ -210,6 +210,7 @@ impl Assembler {
             "store" | "store.w" => self.assemble_operator_with_operand::<u64>(Bytecode::Store)?,
             "store.d" => self.assemble_operator_with_operand::<u64>(Bytecode::StoreD)?,
             "store.b" => self.assemble_operator_with_operand::<u64>(Bytecode::StoreB)?,
+            // TODO: get -> const/data
             "get" | "get.w" => self.assemble_operator(Bytecode::Get),
             "get.d" => self.assemble_operator(Bytecode::GetD),
             "get.b" => self.assemble_operator(Bytecode::GetB),
