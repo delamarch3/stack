@@ -137,16 +137,13 @@ impl Debugger {
             Err("no prgram currently running")?
         }
 
-        let current_position = self.interpreter.position();
-        // TODO: this doesn't work well for breakpoints set later in the program:
-        let breakpoint = self.breakpoints.iter().find(|&&bp| bp >= current_position);
-        let finished = match breakpoint {
-            Some(&bp) => self.interpreter.run_until(bp)?,
-            None => {
-                self.interpreter.run()?;
-                true
-            }
+        let finished = if !self.breakpoints.is_empty() {
+            self.interpreter.run_until(&self.breakpoints)?
+        } else {
+            self.interpreter.run()?;
+            true
         };
+
         if finished {
             self.state = State::Off;
         }

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::frame::{Frame, FrameResult};
 use crate::locals::Locals;
 use crate::output::Output;
@@ -72,13 +74,13 @@ impl Interpreter {
     }
 
     /// Returns true if returning from the main routine
-    pub fn run_until(&mut self, until: u64) -> Result<bool> {
+    pub fn run_until(&mut self, breakpoints: &HashSet<u64>) -> Result<bool> {
         loop {
             let Some(position) = self.step()? else {
                 return Ok(true);
             };
 
-            if position >= until {
+            if breakpoints.contains(&position) {
                 break;
             }
         }
