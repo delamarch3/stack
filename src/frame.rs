@@ -1,34 +1,44 @@
 use std::cmp::Ordering;
+use std::sync::Arc;
 
+use crate::heap::Heap;
 use crate::locals::Locals;
 use crate::program::{Bytecode, Program};
 use crate::stack::OperandStack;
 use crate::{Number, Result};
 
-pub struct Frame {
-    pub opstack: OperandStack,
-    pub locals: Locals,
-    /// The position of the first instruction of the frame
-    pub entry: u64,
-    /// The position of the first instruction after the call
-    pub ret: u64,
-}
-
 pub enum FrameResult {
     Call(Frame),
 
-    // The following results hold the position of the corresponding instruction
+    // The following hold the position of their instruction
     Ret(u64),
     RetW(u64),
     RetD(u64),
     Panic(u64),
 }
 
+pub struct Frame {
+    pub opstack: OperandStack,
+    pub locals: Locals,
+    heap: Arc<Heap>,
+    /// The position of the first instruction of the frame
+    pub entry: u64,
+    /// The position of the first instruction after the call
+    pub ret: u64,
+}
+
 impl Frame {
-    pub fn new(locals: Locals, opstack: OperandStack, entry: u64, ret: u64) -> Self {
+    pub fn new(
+        locals: Locals,
+        opstack: OperandStack,
+        heap: Arc<Heap>,
+        entry: u64,
+        ret: u64,
+    ) -> Self {
         Self {
             opstack,
             locals,
+            heap,
             entry,
             ret,
         }
@@ -80,6 +90,9 @@ impl Frame {
             Bytecode::JmpGt => self.jmp(pc, &[Ordering::Greater])?,
             Bytecode::Dup => self.opstack.dup::<i32>(),
             Bytecode::DupD => self.opstack.dup::<i64>(),
+            Bytecode::Alloc => self.alloc()?,
+            Bytecode::Assign => self.assign::<i32>()?,
+
             Bytecode::Call => return self.call(pc).map(Some),
             Bytecode::Panic => return Ok(Some(FrameResult::Panic(position))),
             Bytecode::Ret => return Ok(Some(FrameResult::Ret(position))),
@@ -120,17 +133,34 @@ impl Frame {
     fn jmp(&mut self, pc: &mut Program<Vec<u8>>, conditions: &[Ordering]) -> Result<()> {
         let pos = pc.next::<u64>()?;
 
-        let jmp = match conditions {
-            [] => true,
-            cs => {
-                let have = self.opstack.pop::<i32>();
-                cs.iter().any(|&want| want as i32 == have)
-            }
+        let jmp = if conditions.is_empty() {
+            true
+        } else {
+            let have = self.opstack.pop::<i32>();
+            conditions.iter().any(|&want| want as i32 == have)
         };
 
         if jmp {
             pc.set_position(pos);
         }
+
+        Ok(())
+    }
+
+    fn alloc(&mut self) -> Result<()> {
+        let size = self.opstack.pop::<u64>();
+        let id = self.heap.alloc(size as usize);
+        self.opstack.push(id as u64);
+        Ok(())
+    }
+
+    fn assign<T: Number>(&mut self) -> Result<()> {
+        let offset = self.opstack.pop::<u64>();
+        let id = self.opstack.pop::<u64>();
+        let data = self.opstack.pop::<T>();
+        let src = data.to_le_bytes();
+
+        self.heap.write(id as usize, offset as usize, src.as_ref());
 
         Ok(())
     }
@@ -142,7 +172,8 @@ impl Frame {
         let entry = pc.next::<u64>()?;
         let ret = pc.position();
         let opstack = OperandStack::default();
-        let frame = Frame::new(locals, opstack, entry, ret);
+        let heap = Arc::clone(&self.heap);
+        let frame = Frame::new(locals, opstack, heap, entry, ret);
         Ok(FrameResult::Call(frame))
     }
 }

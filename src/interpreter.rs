@@ -1,6 +1,8 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::frame::{Frame, FrameResult};
+use crate::heap::Heap;
 use crate::locals::Locals;
 use crate::output::Output;
 use crate::program::Program;
@@ -18,6 +20,7 @@ pub struct Interpreter {
     entry: u64,
     pc: Program<Vec<u8>>,
     frames: Vec<Frame>,
+    heap: Arc<Heap>,
 }
 
 impl Interpreter {
@@ -27,15 +30,23 @@ impl Interpreter {
         let entry = pc.next::<u64>()?;
         pc.set_position(entry);
 
+        let heap = Arc::<Heap>::default();
+
         let main = Frame::new(
             Locals::default(),
             OperandStack::default(),
+            Arc::clone(&heap),
             entry,
             MAIN_RETURN,
         );
         let frames = vec![main];
 
-        Ok(Self { entry, pc, frames })
+        Ok(Self {
+            entry,
+            pc,
+            frames,
+            heap,
+        })
     }
 
     pub fn reset(&mut self) {
@@ -45,6 +56,7 @@ impl Interpreter {
         let main = Frame::new(
             Locals::default(),
             OperandStack::default(),
+            Arc::clone(&self.heap),
             self.entry,
             MAIN_RETURN,
         );

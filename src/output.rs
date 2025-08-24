@@ -171,16 +171,16 @@ impl Output {
 
     pub fn fmt_text(&self, f: &mut impl Write) -> Result<HashMap<u64, usize>> {
         const POS_WIDTH: usize = 4;
-        const INST_WIDTH: usize = 6;
+        const INST_WIDTH: usize = 7;
         const OP_WIDTH: usize = 4;
 
         fn fmt_with_operand<T: Number>(
             f: &mut impl Write,
             pc: &mut Program<&[u8]>,
             labels: &HashMap<u64, String>,
-            word: &str,
+            op: Bytecode,
         ) -> std::fmt::Result {
-            write!(f, "{word:INST_WIDTH$} ")?;
+            write!(f, "{op:INST_WIDTH$}")?;
             let operand = pc.next::<T>().map_err(|_| std::fmt::Error)?;
             write!(f, "{operand:OP_WIDTH$}")?;
 
@@ -216,45 +216,21 @@ impl Output {
             write!(f, "{pos:POS_WIDTH$}: ")?;
 
             match op {
-                Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, &self.labels, "push")?,
-                Bytecode::PushD => fmt_with_operand::<i64>(f, &mut pc, &self.labels, "push.d")?,
-                Bytecode::PushB => fmt_with_operand::<i8>(f, &mut pc, &self.labels, "push")?,
-                Bytecode::Pop => write!(f, "pop")?,
-                Bytecode::PopD => write!(f, "pop.d")?,
-                Bytecode::PopB => write!(f, "pop.b")?,
-                Bytecode::Load => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "load")?,
-                Bytecode::LoadD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "load.d")?,
-                Bytecode::LoadB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "load.b")?,
-                Bytecode::Store => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "store")?,
-                Bytecode::StoreD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "store.d")?,
-                Bytecode::StoreB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "store.b")?,
-                Bytecode::Get => write!(f, "get")?,
-                Bytecode::GetD => write!(f, "get.d")?,
-                Bytecode::GetB => write!(f, "get.b")?,
-                Bytecode::Add => write!(f, "add")?,
-                Bytecode::AddD => write!(f, "add.d")?,
-                Bytecode::AddB => write!(f, "add.b")?,
-                Bytecode::Sub => write!(f, "sub")?,
-                Bytecode::SubD => write!(f, "sub.d")?,
-                Bytecode::SubB => write!(f, "sub.b")?,
-                Bytecode::Mul => write!(f, "mul")?,
-                Bytecode::MulD => write!(f, "mul.d")?,
-                Bytecode::Div => write!(f, "div")?,
-                Bytecode::DivD => write!(f, "div.d")?,
-                Bytecode::Cmp => write!(f, "cmp")?,
-                Bytecode::CmpD => write!(f, "cmp.d")?,
-                Bytecode::Dup => write!(f, "dup")?,
-                Bytecode::DupD => write!(f, "dup.d")?,
-                Bytecode::Jmp => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp")?,
-                Bytecode::JmpLt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.lt")?,
-                Bytecode::JmpEq => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.eq")?,
-                Bytecode::JmpGt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.gt")?,
-                Bytecode::JmpNe => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "jmp.ne")?,
-                Bytecode::Call => fmt_with_operand::<u64>(f, &mut pc, &self.labels, "call")?,
-                Bytecode::Panic => write!(f, "panic")?,
-                Bytecode::Ret => write!(f, "ret")?,
-                Bytecode::RetW => write!(f, "ret.w")?,
-                Bytecode::RetD => write!(f, "ret.d")?,
+                Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, &self.labels, op)?,
+                Bytecode::PushD => fmt_with_operand::<i64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::Load => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::LoadD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::LoadB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::Store => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::StoreD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::StoreB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::Jmp => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::JmpLt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::JmpEq => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::JmpGt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::JmpNe => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::Call => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                op => write!(f, "{op}")?,
             }
 
             pos = next_position(&pc);

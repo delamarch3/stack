@@ -16,7 +16,7 @@ main:
     pop.d
 
     ; Write to the buffer in a loop
-    push.d 0
+    load.d 0
     store.d 2 ; copy the pointer
 
     push 97 ; 'a'
@@ -24,10 +24,12 @@ main:
     dup
 loop:
     ; Write the char
-    push.d 2
+    load.d 2
+    push 97 ; todo: should be local
     dup
     write.b
     ; Increment the pointer
+    load.d 2
     push.d 1
     add
     store.d 2
