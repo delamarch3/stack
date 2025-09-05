@@ -14,6 +14,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[allow(dead_code)]
 pub trait Number:
     Sized
+    + Default
     + Ord
     + std::fmt::Debug
     + std::fmt::Display
@@ -24,7 +25,7 @@ pub trait Number:
     + std::ops::Div<Output = Self>
 {
     const SIZE: usize;
-    type Bytes: IntoIterator<Item = u8> + AsRef<[u8]>;
+    type Bytes: IntoIterator<Item = u8> + AsRef<[u8]> + AsMut<[u8]>;
     fn to_be_bytes(&self) -> Self::Bytes;
     fn to_le_bytes(&self) -> Self::Bytes;
     fn from_le_bytes(bytes: &[u8]) -> Self;

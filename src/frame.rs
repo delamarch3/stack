@@ -91,7 +91,8 @@ impl Frame {
             Bytecode::Dup => self.opstack.dup::<i32>(),
             Bytecode::DupD => self.opstack.dup::<i64>(),
             Bytecode::Alloc => self.alloc()?,
-            Bytecode::Assign => self.assign::<i32>()?,
+            Bytecode::Read => self.read::<i32>()?,
+            Bytecode::Write => self.write::<i32>()?,
 
             Bytecode::Call => return self.call(pc).map(Some),
             Bytecode::Panic => return Ok(Some(FrameResult::Panic(position))),
@@ -151,16 +152,29 @@ impl Frame {
         let size = self.opstack.pop::<u64>();
         let id = self.heap.alloc(size as usize);
         self.opstack.push(id as u64);
+
         Ok(())
     }
 
-    fn assign<T: Number>(&mut self) -> Result<()> {
+    fn write<T: Number>(&mut self) -> Result<()> {
+        let data = self.opstack.pop::<T>();
         let offset = self.opstack.pop::<u64>();
         let id = self.opstack.pop::<u64>();
-        let data = self.opstack.pop::<T>();
         let src = data.to_le_bytes();
 
         self.heap.write(id as usize, offset as usize, src.as_ref());
+
+        Ok(())
+    }
+
+    fn read<T: Number>(&mut self) -> Result<()> {
+        let offset = self.opstack.pop::<u64>();
+        let id = self.opstack.pop::<u64>();
+        let mut dst = T::default().to_le_bytes();
+
+        self.heap.read(id as usize, offset as usize, dst.as_mut());
+
+        self.opstack.push(T::from_le_bytes(dst.as_ref()));
 
         Ok(())
     }
@@ -169,11 +183,13 @@ impl Frame {
         let mut locals = Locals::default();
         locals.copy_from_slice(self.opstack.as_slice());
         self.opstack.clear();
+
         let entry = pc.next::<u64>()?;
         let ret = pc.position();
         let opstack = OperandStack::default();
         let heap = Arc::clone(&self.heap);
         let frame = Frame::new(locals, opstack, heap, entry, ret);
+
         Ok(FrameResult::Call(frame))
     }
 }

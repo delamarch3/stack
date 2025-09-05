@@ -198,6 +198,9 @@ impl Assembler {
 
     fn assemble_instruction(&mut self, word: &str) -> Result<()> {
         match word {
+            "alloc" => self.assemble_operator(Bytecode::Alloc),
+            "write" => self.assemble_operator(Bytecode::Write),
+            "read" => self.assemble_operator(Bytecode::Read),
             "push" | "push.w" => self.assemble_operator_with_operand::<i32>(Bytecode::Push)?,
             "push.d" => self.assemble_operator_with_operand::<i64>(Bytecode::PushD)?,
             "push.b" => self.assemble_operator_with_operand::<i8>(Bytecode::PushB)?,
