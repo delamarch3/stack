@@ -115,6 +115,10 @@ impl OperandStack {
         let value = T::from_le_bytes(&self.stack[offset..offset + T::SIZE]);
         self.push(value);
     }
+
+    // TODO: swap and over are useful
+    // swap (dd, dw, wd, ww) - swap the two top stack items
+    // over (d, w) - copy second item to top
 }
 
 #[cfg(test)]

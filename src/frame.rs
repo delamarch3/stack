@@ -1,4 +1,7 @@
 use std::cmp::Ordering;
+use std::fs::File;
+use std::io::Write;
+use std::os::fd::FromRawFd;
 use std::sync::Arc;
 
 use crate::heap::Heap;
@@ -56,42 +59,43 @@ impl Frame {
         let position = pc.position();
 
         match pc.next_op()? {
-            Bytecode::Push => self.push::<i32>(pc)?,
-            Bytecode::PushD => self.push::<i64>(pc)?,
-            Bytecode::PushB => self.push::<i8>(pc)?,
-            Bytecode::Pop => self.opstack.drop::<i32>(),
-            Bytecode::PopD => self.opstack.drop::<i64>(),
-            Bytecode::PopB => self.opstack.drop::<i8>(),
-            Bytecode::Load => self.load::<i32>(pc)?,
-            Bytecode::LoadD => self.load::<i64>(pc)?,
-            Bytecode::LoadB => self.load::<i8>(pc)?,
-            Bytecode::Store => self.store::<i32>(pc)?,
-            Bytecode::StoreD => self.store::<i64>(pc)?,
-            Bytecode::StoreB => self.store::<i8>(pc)?,
+            Bytecode::Alloc => self.alloc()?,
             Bytecode::Get => self.get::<i32>(pc),
             Bytecode::GetD => self.get::<i64>(pc),
             Bytecode::GetB => self.get::<i8>(pc),
+            Bytecode::JmpEq => self.jmp(pc, &[Ordering::Equal])?,
+            Bytecode::JmpNe => self.jmp(pc, &[Ordering::Greater, Ordering::Less])?,
+            Bytecode::JmpGt => self.jmp(pc, &[Ordering::Greater])?,
+            Bytecode::JmpLt => self.jmp(pc, &[Ordering::Less])?,
+            Bytecode::Jmp => self.jmp(pc, &[])?,
+            Bytecode::Load => self.load::<i32>(pc)?,
+            Bytecode::LoadD => self.load::<i64>(pc)?,
+            Bytecode::LoadB => self.load::<i8>(pc)?,
             Bytecode::Add => self.opstack.add::<i32>(),
             Bytecode::AddD => self.opstack.add::<i64>(),
             Bytecode::AddB => self.opstack.add::<i8>(),
+            Bytecode::Cmp => self.opstack.cmp::<i32>(),
+            Bytecode::CmpD => self.opstack.cmp::<i64>(),
+            Bytecode::Div => self.opstack.div::<i32>(),
+            Bytecode::DivD => self.opstack.div::<i64>(),
+            Bytecode::Pop => self.opstack.drop::<i32>(),
+            Bytecode::PopD => self.opstack.drop::<i64>(),
+            Bytecode::PopB => self.opstack.drop::<i8>(),
+            Bytecode::Dup => self.opstack.dup::<i32>(),
+            Bytecode::DupD => self.opstack.dup::<i64>(),
+            Bytecode::Mul => self.opstack.mul::<i32>(),
+            Bytecode::MulD => self.opstack.mul::<i64>(),
             Bytecode::Sub => self.opstack.sub::<i32>(),
             Bytecode::SubD => self.opstack.sub::<i64>(),
             Bytecode::SubB => self.opstack.sub::<i8>(),
-            Bytecode::Mul => self.opstack.mul::<i32>(),
-            Bytecode::MulD => self.opstack.mul::<i64>(),
-            Bytecode::Div => self.opstack.div::<i32>(),
-            Bytecode::DivD => self.opstack.div::<i64>(),
-            Bytecode::Cmp => self.opstack.cmp::<i32>(),
-            Bytecode::CmpD => self.opstack.cmp::<i64>(),
-            Bytecode::Jmp => self.jmp(pc, &[])?,
-            Bytecode::JmpEq => self.jmp(pc, &[Ordering::Equal])?,
-            Bytecode::JmpNe => self.jmp(pc, &[Ordering::Greater, Ordering::Less])?,
-            Bytecode::JmpLt => self.jmp(pc, &[Ordering::Less])?,
-            Bytecode::JmpGt => self.jmp(pc, &[Ordering::Greater])?,
-            Bytecode::Dup => self.opstack.dup::<i32>(),
-            Bytecode::DupD => self.opstack.dup::<i64>(),
-            Bytecode::Alloc => self.alloc()?,
+            Bytecode::Push => self.push::<i32>(pc)?,
+            Bytecode::PushD => self.push::<i64>(pc)?,
+            Bytecode::PushB => self.push::<i8>(pc)?,
             Bytecode::Read => self.read::<i32>()?,
+            Bytecode::Store => self.store::<i32>(pc)?,
+            Bytecode::StoreD => self.store::<i64>(pc)?,
+            Bytecode::StoreB => self.store::<i8>(pc)?,
+            Bytecode::System => self.system()?,
             Bytecode::Write => self.write::<i32>()?,
 
             Bytecode::Call => return self.call(pc).map(Some),
@@ -156,6 +160,16 @@ impl Frame {
         Ok(())
     }
 
+    // TODO
+    fn ptr(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    // TODO
+    fn dataptr(&mut self) -> Result<()> {
+        todo!()
+    }
+
     fn write<T: Number>(&mut self) -> Result<()> {
         let data = self.opstack.pop::<T>();
         let offset = self.opstack.pop::<u64>();
@@ -175,6 +189,38 @@ impl Frame {
         self.heap.read(id as usize, offset as usize, dst.as_mut());
 
         self.opstack.push(T::from_le_bytes(dst.as_ref()));
+
+        Ok(())
+    }
+
+    fn system(&mut self) -> Result<()> {
+        let call = self.opstack.pop::<i32>();
+
+        match call {
+            4 => {
+                let size = self.opstack.pop::<u64>() as usize;
+                let id = self.opstack.pop::<u64>() as usize;
+                let ptr = self.heap.ptr(id);
+                let fd = self.opstack.pop::<i32>();
+
+                if ptr.is_null() {
+                    Err("invalid ptr")?
+                }
+
+                // SAFETY: TODO
+                let mut f = unsafe { File::from_raw_fd(fd) };
+                // SAFETY: TODO
+                let s = unsafe { std::slice::from_raw_parts(ptr, size) };
+
+                let r = match f.write(s) {
+                    Ok(n) => n as i32,
+                    Err(_) => -1,
+                };
+
+                self.opstack.push(r);
+            }
+            _ => Err(format!("invalid system call: {call}"))?,
+        };
 
         Ok(())
     }

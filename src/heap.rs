@@ -1,3 +1,4 @@
+use std::ptr;
 use std::sync::Mutex;
 
 pub struct Allocation {
@@ -46,6 +47,15 @@ impl Heap {
         allocations.push(a);
 
         id
+    }
+
+    pub fn ptr(&self, id: usize) -> *const u8 {
+        let allocations = self.allocations.lock().unwrap();
+        let Some(allocation) = allocations.get(id) else {
+            return ptr::null();
+        };
+
+        allocation.mem.as_ptr()
     }
 
     pub fn free(&self, id: usize) {

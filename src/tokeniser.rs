@@ -182,9 +182,26 @@ impl<'s> Tokeniser<'s> {
                 }
                 '\'' => {
                     self.src.next();
-                    let Some(value) = self.src.next() else {
+                    let Some(first) = self.src.next() else {
                         panic!("expected char after '")
                     };
+
+                    let value = match first {
+                        '\\' => match self.src.next() {
+                            Some(c) => match c {
+                                '\\' => '\\',
+                                '\'' => '\'',
+                                'r' => '\r',
+                                't' => '\t',
+                                'n' => '\n',
+                                '0' => '\0',
+                                _ => panic!("unknown character escape"),
+                            },
+                            None => panic!("expected closing '"),
+                        },
+                        _ => first,
+                    };
+
                     let Some('\'') = self.src.next() else {
                         panic!("expected closing '")
                     };
@@ -228,12 +245,12 @@ mod test {
                 vec![Token::Keyword(Keyword::Word), Token::Eof],
             ),
             (
-                "
+                r###"
 ; My Program
 .entry main
 
-.data c .byte 'a'
-.data s .string \"Hello, World!\"
+.data c .byte '\n'
+.data s .string "Hello, World!"
 .data n .word -255
 .data c2 .word '🤠'
 
@@ -244,7 +261,7 @@ push 1
 add
 cmp 10
 jmp.lt loop
-ret",
+ret"###,
                 vec![
                     Token::Dot,
                     Token::Keyword(Keyword::Entry),
@@ -254,7 +271,7 @@ ret",
                     Token::Word("c".into()),
                     Token::Dot,
                     Token::Keyword(Keyword::Byte),
-                    Token::Value(Value::Char('a')),
+                    Token::Value(Value::Char('\n')),
                     Token::Dot,
                     Token::Keyword(Keyword::Data),
                     Token::Word("s".into()),
