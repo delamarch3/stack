@@ -1,19 +1,38 @@
 .entry main
 
-.data message .str "Hello, World!" .byte '\n'
+.data message .string "Hello, World!" .byte '\n'
 
-.data file .str "text.txt" .byte '\0'
+.data file .string "text.txt" .byte '\0'
 
 .data RDRW .word 2
 
-main:
-    push 1          ; stdout
-    dataptr message
-    push 14         ; message.len
-    call write
+.data STDOUT .word 1
+.data WRITE .word 4
 
-    dataptr file
-    push RDRW
-    call open
+main:
+    push.d 64
+    alloc
+    dup.d
+    store.d 0 ; buf
+
+              ; dup id
+    push.d 0  ; offset
+    push.b 65 ; data
+    write
+
+    push 1    ; stdout
+    load.d 0  ; buf
+    ptr
+    push.d 1  ; size
+    push 4    ; write
+    system
+    pop
+
+    push 1          ; stdout
+    dataptr message ; buf
+    push.d 14       ; size
+    push 4          ; write
+    system
+    pop
 
     ret

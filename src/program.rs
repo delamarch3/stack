@@ -10,6 +10,7 @@ pub enum Bytecode {
     Alloc,
     Cmp,
     CmpD,
+    DataPtr,
     Div,
     DivD,
     Dup,
@@ -27,6 +28,7 @@ pub enum Bytecode {
     LoadD,
     Mul,
     MulD,
+    Ptr,
     Pop,
     PopB,
     PopD,
@@ -61,6 +63,7 @@ impl std::fmt::Display for Bytecode {
             Bytecode::Alloc => write!(f, "{:width$}", "alloc"),
             Bytecode::Cmp => write!(f, "{:width$}", "cmp"),
             Bytecode::CmpD => write!(f, "{:width$}", "cmp.d"),
+            Bytecode::DataPtr => write!(f, "{:width$}", "data"),
             Bytecode::Div => write!(f, "{:width$}", "div"),
             Bytecode::DivD => write!(f, "{:width$}", "div.d"),
             Bytecode::Dup => write!(f, "{:width$}", "dup"),
@@ -78,6 +81,7 @@ impl std::fmt::Display for Bytecode {
             Bytecode::LoadD => write!(f, "{:width$}", "load.d"),
             Bytecode::Mul => write!(f, "{:width$}", "mul"),
             Bytecode::MulD => write!(f, "{:width$}", "mul.d"),
+            Bytecode::Ptr => write!(f, "{:width$}", "ptr"),
             Bytecode::Pop => write!(f, "{:width$}", "pop"),
             Bytecode::PopB => write!(f, "{:width$}", "pop.b"),
             Bytecode::PopD => write!(f, "{:width$}", "pop.d"),
@@ -144,5 +148,9 @@ impl<T: AsRef<[u8]>> Program<T> {
 
     pub fn get<N: Number>(&mut self, offset: usize) -> N {
         N::from_le_bytes(&self.counter.get_ref().as_ref()[offset..offset + N::SIZE])
+    }
+
+    pub fn getptr(&mut self, offset: usize) -> *const u8 {
+        self.counter.get_ref().as_ref()[offset..].as_ptr()
     }
 }

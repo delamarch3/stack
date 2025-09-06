@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::fs::File;
 use std::io::Write;
+use std::mem;
 use std::os::fd::FromRawFd;
 use std::sync::Arc;
 
@@ -60,6 +61,7 @@ impl Frame {
 
         match pc.next_op()? {
             Bytecode::Alloc => self.alloc()?,
+            Bytecode::DataPtr => self.dataptr(pc)?,
             Bytecode::Get => self.get::<i32>(pc),
             Bytecode::GetD => self.get::<i64>(pc),
             Bytecode::GetB => self.get::<i8>(pc),
@@ -88,6 +90,7 @@ impl Frame {
             Bytecode::Sub => self.opstack.sub::<i32>(),
             Bytecode::SubD => self.opstack.sub::<i64>(),
             Bytecode::SubB => self.opstack.sub::<i8>(),
+            Bytecode::Ptr => self.ptr()?,
             Bytecode::Push => self.push::<i32>(pc)?,
             Bytecode::PushD => self.push::<i64>(pc)?,
             Bytecode::PushB => self.push::<i8>(pc)?,
@@ -160,14 +163,20 @@ impl Frame {
         Ok(())
     }
 
-    // TODO
     fn ptr(&mut self) -> Result<()> {
-        todo!()
+        let id = self.opstack.pop::<u64>();
+        let ptr = self.heap.ptr(id as usize);
+        self.opstack.push(ptr as u64);
+
+        Ok(())
     }
 
-    // TODO
-    fn dataptr(&mut self) -> Result<()> {
-        todo!()
+    fn dataptr(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
+        let offset = pc.next::<u64>()?;
+        let ptr = pc.getptr(offset as usize);
+        self.opstack.push(ptr as u64);
+
+        Ok(())
     }
 
     fn write<T: Number>(&mut self) -> Result<()> {
@@ -199,8 +208,7 @@ impl Frame {
         match call {
             4 => {
                 let size = self.opstack.pop::<u64>() as usize;
-                let id = self.opstack.pop::<u64>() as usize;
-                let ptr = self.heap.ptr(id);
+                let ptr = self.opstack.pop::<u64>() as *const u8;
                 let fd = self.opstack.pop::<i32>();
 
                 if ptr.is_null() {
@@ -218,6 +226,9 @@ impl Frame {
                 };
 
                 self.opstack.push(r);
+
+                // Avoid closing the file descriptor
+                mem::forget(f);
             }
             _ => Err(format!("invalid system call: {call}"))?,
         };
