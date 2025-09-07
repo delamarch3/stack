@@ -1,13 +1,14 @@
 .entry main
 
 .data message .string "Hello, World!" .byte '\n'
+#define MESSAGESZ { 14 }
 
 .data file .string "text.txt" .byte '\0'
 
 .data RDRW .word 2
 
-.data STDOUT .word 1
-.data WRITE .word 4
+#define STDOUT { 1 }
+#define WRITE { 4 }
 
 main:
     push.d 64
@@ -28,10 +29,10 @@ main:
     system
     pop
 
-    push 1          ; stdout
-    dataptr message ; buf
-    push.d 14       ; size
-    push 4          ; write
+    push @STDOUT      ; fd
+    dataptr message   ; buf
+    push.d @MESSAGESZ ; size
+    push @WRITE
     system
     pop
 
