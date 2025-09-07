@@ -1,14 +1,11 @@
 .entry main
 
+#include "examples/system.b"
+
 .data message .string "Hello, World!" .byte '\n'
 #define MESSAGESZ { 14 }
 
 .data file .string "text.txt" .byte '\0'
-
-.data RDRW .word 2
-
-#define STDOUT { 1 }
-#define WRITE { 4 }
 
 main:
     push.d 64

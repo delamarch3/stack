@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
 use std::mem;
 
 use crate::output::Output;
@@ -72,6 +74,9 @@ impl Assembler {
             let offset = self.resolve_label(&r#ref)? as u64;
             self.text[i..i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
             labels.insert(offset, r#ref);
+            // TODO: labels are only inserted if they are referenced,
+            // but we still see their instructions in the disassembly
+            // Also looks like duplicate labels are allowed
         }
 
         let out = Output::new(offset, self.data, self.text, labels);
@@ -219,7 +224,7 @@ impl Assembler {
             "define" => {
                 let word = match tokens.next() {
                     Some(Token::Word(word)) => word,
-                    Some(token) => format!("unexpected token: {token:?}"),
+                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
                     None => todo!(),
                 };
 
@@ -229,7 +234,23 @@ impl Assembler {
 
                 self.macros.insert(word, mtokens);
             }
-            "include" => todo!(),
+            "include" => {
+                // TODO: support paths relative to the file doing the include
+                let path = match tokens.next() {
+                    Some(Token::Value(Value::String(path))) => path,
+                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
+                    None => todo!(),
+                };
+
+                let mut contents = String::new();
+                let mut file = File::options().read(true).open(path)?;
+                file.read_to_string(&mut contents)?;
+
+                let mut mtokens =
+                    TokenState::new(Tokeniser::new(contents.as_str()).into_iter().collect());
+
+                self.assemble_tokens(&mut mtokens)?;
+            }
             _ => Err(format!("unknown macro directive"))?,
         }
 
