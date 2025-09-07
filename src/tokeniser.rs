@@ -18,7 +18,11 @@ pub enum Token {
     Dot,
     Colon,
     Comma,
+    At,
+    Hash,
     Eof,
+    LBrace,
+    RBrace,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -168,6 +172,22 @@ impl<'s> Tokeniser<'s> {
                     self.src.next();
                     Token::Colon
                 }
+                '@' => {
+                    self.src.next();
+                    Token::At
+                }
+                '#' => {
+                    self.src.next();
+                    Token::Hash
+                }
+                '{' => {
+                    self.src.next();
+                    Token::LBrace
+                }
+                '}' => {
+                    self.src.next();
+                    Token::RBrace
+                }
                 '0'..='9' => {
                     let value = self.take_while(|c| c.is_numeric());
                     Token::Value(Value::Number(value))
@@ -229,6 +249,79 @@ impl<'s> Tokeniser<'s> {
             },
             None => Token::Eof,
         }
+    }
+}
+
+pub struct TokenState {
+    tokens: Vec<Token>,
+    position: usize,
+}
+
+impl TokenState {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        let position = 0;
+        Self { tokens, position }
+    }
+
+    pub fn check(&mut self, tokens: &[Token]) -> bool {
+        let position = self.position;
+        for token in tokens {
+            if Some(token) == self.next().as_ref() {
+                continue;
+            } else {
+                self.position = position;
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn expect(&mut self, tokens: &[Token]) -> Result<()> {
+        self.check(tokens)
+            .then_some(())
+            .ok_or(format!("unexpected token: {:?}", self.tokens[self.position]).into())
+    }
+
+    pub fn next(&mut self) -> Option<Token> {
+        let token = self.tokens.get(self.position).cloned()?;
+        self.position += 1;
+        Some(token)
+    }
+
+    pub fn peek_n(&self, n: usize) -> Option<Token> {
+        let position = self.position + n;
+        self.tokens.get(position).cloned()
+    }
+
+    pub fn peek(&self) -> Option<Token> {
+        self.peek_n(0)
+    }
+
+    pub fn next_keyword(&mut self) -> Result<Keyword> {
+        match self.next() {
+            Some(Token::Keyword(keyword)) => Ok(keyword),
+            Some(token) => Err(format!("unexpected token: {token:?}"))?,
+            None => todo!(),
+        }
+    }
+
+    pub fn take_while<F>(&mut self, f: F) -> Vec<Token>
+    where
+        F: Fn(&Token) -> bool,
+    {
+        let mut tokens = Vec::new();
+
+        while let Some(token) = self.peek() {
+            if !f(&token) {
+                break;
+            }
+
+            self.position += 1;
+            tokens.push(token);
+        }
+
+        tokens
     }
 }
 

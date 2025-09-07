@@ -3,7 +3,7 @@ use std::mem;
 
 use crate::output::Output;
 use crate::program::Bytecode;
-use crate::tokeniser::{Keyword, Token, Tokeniser, Value};
+use crate::tokeniser::{Keyword, Token, TokenState, Tokeniser, Value};
 use crate::{Number, Result};
 
 #[derive(PartialEq, Eq)]
@@ -29,56 +29,37 @@ impl Label {
         Self { section, offset }
     }
 }
-
 pub struct Assembler {
-    tokens: Vec<Token>,
-    position: usize,
     data: Vec<u8>,
     text: Vec<u8>,
     labels: HashMap<String, Label>,
     unresolved: HashMap<u64, String>,
+    macros: HashMap<String, Vec<Token>>,
 }
 
 impl Assembler {
-    pub fn new(src: &str) -> Self {
-        let tokens = Tokeniser::new(src).into_iter().collect();
-        let position = 0;
+    pub fn new() -> Self {
         let data = Vec::new();
         let text = Vec::new();
         let labels = HashMap::new();
         let unresolved = HashMap::new();
+        let macros = HashMap::new();
 
         Self {
-            tokens,
-            position,
             data,
             text,
             labels,
             unresolved,
+            macros,
         }
     }
 
-    pub fn assemble(mut self) -> Result<Output> {
-        let entry = self.parse_entry()?;
+    pub fn assemble(mut self, src: &str) -> Result<Output> {
+        let mut tokens = TokenState::new(Tokeniser::new(src).into_iter().collect());
 
-        while let Some(token) = self.next_token() {
-            match token {
-                Token::Word(word) => {
-                    if self.check(&[Token::Colon]) {
-                        self.labels
-                            .insert(word.to_string(), Label::text(self.text.len()));
-                        continue;
-                    }
+        let entry = self.parse_entry(&mut tokens)?;
 
-                    self.assemble_instruction(word.as_str())?;
-                }
-                Token::Dot => {
-                    self.assemble_directive()?;
-                }
-                Token::Eof => break,
-                token => Err(format!("unexpected token: {token:?}"))?,
-            }
-        }
+        self.assemble_tokens(&mut tokens)?;
 
         // Add entry offset to labels
         let mut labels = HashMap::new();
@@ -98,6 +79,35 @@ impl Assembler {
         Ok(out)
     }
 
+    fn assemble_tokens(&mut self, tokens: &mut TokenState) -> Result<()> {
+        while let Some(token) = tokens.next() {
+            match token {
+                Token::Word(word) => {
+                    if tokens.check(&[Token::Colon]) {
+                        self.labels
+                            .insert(word.to_string(), Label::text(self.text.len()));
+                        continue;
+                    }
+
+                    self.assemble_instruction(tokens, word.as_str())?;
+                }
+                Token::Dot => {
+                    self.assemble_directive(tokens)?;
+                }
+                Token::Hash => {
+                    self.register_macro(tokens)?;
+                }
+                Token::At => {
+                    self.assemble_expansion(tokens)?;
+                }
+                Token::Eof => break,
+                token => Err(format!("unexpected token: {token:?}"))?,
+            }
+        }
+
+        Ok(())
+    }
+
     fn resolve_label(&self, r#ref: &str) -> Result<usize> {
         let Some(label) = self.labels.get(r#ref) else {
             Err(format!("could not resolve label: {}", r#ref))?
@@ -113,20 +123,20 @@ impl Assembler {
         Ok(offset)
     }
 
-    fn assemble_directive(&mut self) -> Result<()> {
-        match self.next_keyword()? {
-            Keyword::Data => self.assemble_data()?,
+    fn assemble_directive(&mut self, tokens: &mut TokenState) -> Result<()> {
+        match tokens.next_keyword()? {
+            Keyword::Data => self.assemble_data(tokens)?,
             keyword => Err(format!("unexpected keyword: {keyword:?}"))?,
         }
 
         Ok(())
     }
 
-    fn assemble_data(&mut self) -> Result<()> {
-        let name = match self.next_token() {
+    fn assemble_data(&mut self, tokens: &mut TokenState) -> Result<()> {
+        let name = match tokens.next() {
             Some(Token::Word(name)) => name,
             Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => unreachable!(),
+            None => todo!(),
         };
 
         let offset = self.data.len();
@@ -139,8 +149,8 @@ impl Assembler {
         }
 
         while {
-            self.expect(&[Token::Dot])?;
-            let size = match self.next_keyword()? {
+            tokens.expect(&[Token::Dot])?;
+            let size = match tokens.next_keyword()? {
                 Keyword::Byte => i8::SIZE,
                 Keyword::Word => i32::SIZE,
                 Keyword::Dword => i64::SIZE,
@@ -149,9 +159,9 @@ impl Assembler {
             };
 
             while {
-                match self.peek_token() {
+                match tokens.peek() {
                     Some(Token::Value(value)) => {
-                        self.next_token();
+                        tokens.next();
                         match value {
                             Value::Number(number) if size == i8::SIZE => {
                                 let value = number.parse::<i8>()?;
@@ -182,10 +192,11 @@ impl Assembler {
                     _ => self.data.extend(std::iter::repeat_n(0u8, size)),
                 };
 
-                self.check(&[Token::Comma])
+                tokens.check(&[Token::Comma])
             } {}
 
-            self.peek_n_token(1)
+            tokens
+                .peek_n(1)
                 .map(|token| match token {
                     Token::Keyword(keyword) => keyword.is_data_type(),
                     _ => false,
@@ -196,7 +207,54 @@ impl Assembler {
         Ok(())
     }
 
-    fn assemble_instruction(&mut self, word: &str) -> Result<()> {
+    fn register_macro(&mut self, tokens: &mut TokenState) -> Result<()> {
+        let directive = match tokens.next() {
+            Some(Token::Word(word)) => word,
+            Some(token) => format!("unexpected token: {token:?}"),
+            None => todo!(),
+        };
+
+        // TODO: keywords?
+        match directive.as_str() {
+            "define" => {
+                let word = match tokens.next() {
+                    Some(Token::Word(word)) => word,
+                    Some(token) => format!("unexpected token: {token:?}"),
+                    None => todo!(),
+                };
+
+                tokens.expect(&[Token::LBrace])?;
+                let mtokens = tokens.take_while(|token| token != &Token::RBrace);
+                tokens.expect(&[Token::RBrace])?;
+
+                self.macros.insert(word, mtokens);
+            }
+            "include" => todo!(),
+            _ => Err(format!("unknown macro directive"))?,
+        }
+
+        Ok(())
+    }
+
+    fn assemble_expansion(&mut self, tokens: &mut TokenState) -> Result<()> {
+        let word = match tokens.next() {
+            Some(Token::Word(word)) => word,
+            Some(token) => format!("unexpected token: {token:?}"),
+            None => todo!(),
+        };
+
+        let Some(mut tokens) = self.macros.get(&word).cloned().map(TokenState::new) else {
+            Err(format!(
+                "macro must be declared before it is expanded: {word}"
+            ))?
+        };
+
+        self.assemble_tokens(&mut tokens)?;
+
+        Ok(())
+    }
+
+    fn assemble_instruction(&mut self, tokens: &mut TokenState, word: &str) -> Result<()> {
         match word {
             "add" | "add.w" => self.assemble_operator(Bytecode::Add),
             "add.b" => self.assemble_operator(Bytecode::AddB),
@@ -204,12 +262,11 @@ impl Assembler {
             "alloc" => self.assemble_operator(Bytecode::Alloc),
             "cmp" | "cmp.w" => self.assemble_operator(Bytecode::Cmp),
             "cmp.d" => self.assemble_operator(Bytecode::CmpD),
-            "dataptr" => self.assemble_operator_with_operand::<u64>(Bytecode::DataPtr)?,
+            "dataptr" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::DataPtr)?,
             "div" | "div.w " => self.assemble_operator(Bytecode::Div),
             "div.d" => self.assemble_operator(Bytecode::DivD),
             "dup" | "dup.w" => self.assemble_operator(Bytecode::Dup),
             "dup.d" => self.assemble_operator(Bytecode::DupD),
-            // TODO: get -> data (combine push and get)
             "get" | "get.w" => self.assemble_operator(Bytecode::Get),
             "get.b" => self.assemble_operator(Bytecode::GetB),
             "get.d" => self.assemble_operator(Bytecode::GetD),
@@ -228,21 +285,27 @@ impl Assembler {
             "sub.b" => self.assemble_operator(Bytecode::SubB),
             "sub.d" => self.assemble_operator(Bytecode::SubD),
             "write" => self.assemble_operator(Bytecode::Write),
-            "call" => self.assemble_operator_with_label(Bytecode::Call)?,
-            "jmp" => self.assemble_operator_with_label(Bytecode::Jmp)?,
-            "jmp.eq" => self.assemble_operator_with_label(Bytecode::JmpEq)?,
-            "jmp.gt" => self.assemble_operator_with_label(Bytecode::JmpGt)?,
-            "jmp.lt" => self.assemble_operator_with_label(Bytecode::JmpLt)?,
-            "jmp.ne" => self.assemble_operator_with_label(Bytecode::JmpNe)?,
-            "push" | "push.w" => self.assemble_operator_with_operand::<i32>(Bytecode::Push)?,
-            "push.d" => self.assemble_operator_with_operand::<i64>(Bytecode::PushD)?,
-            "push.b" => self.assemble_operator_with_operand::<i8>(Bytecode::PushB)?,
-            "load" | "load.w" => self.assemble_operator_with_operand::<u64>(Bytecode::Load)?,
-            "load.b" => self.assemble_operator_with_operand::<u64>(Bytecode::LoadB)?,
-            "load.d" => self.assemble_operator_with_operand::<u64>(Bytecode::LoadD)?,
-            "store" | "store.w" => self.assemble_operator_with_operand::<u64>(Bytecode::Store)?,
-            "store.b" => self.assemble_operator_with_operand::<u64>(Bytecode::StoreB)?,
-            "store.d" => self.assemble_operator_with_operand::<u64>(Bytecode::StoreD)?,
+            "call" => self.assemble_operator_with_label(tokens, Bytecode::Call)?,
+            "jmp" => self.assemble_operator_with_label(tokens, Bytecode::Jmp)?,
+            "jmp.eq" => self.assemble_operator_with_label(tokens, Bytecode::JmpEq)?,
+            "jmp.gt" => self.assemble_operator_with_label(tokens, Bytecode::JmpGt)?,
+            "jmp.lt" => self.assemble_operator_with_label(tokens, Bytecode::JmpLt)?,
+            "jmp.ne" => self.assemble_operator_with_label(tokens, Bytecode::JmpNe)?,
+            "push" | "push.w" => {
+                self.assemble_operator_with_operand::<i32>(tokens, Bytecode::Push)?
+            }
+            "push.d" => self.assemble_operator_with_operand::<i64>(tokens, Bytecode::PushD)?,
+            "push.b" => self.assemble_operator_with_operand::<i8>(tokens, Bytecode::PushB)?,
+            "load" | "load.w" => {
+                self.assemble_operator_with_operand::<u64>(tokens, Bytecode::Load)?
+            }
+            "load.b" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LoadB)?,
+            "load.d" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LoadD)?,
+            "store" | "store.w" => {
+                self.assemble_operator_with_operand::<u64>(tokens, Bytecode::Store)?
+            }
+            "store.b" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::StoreB)?,
+            "store.d" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::StoreD)?,
             "system" => self.assemble_operator(Bytecode::System),
             word => Err(format!("unknown instruction: {word}"))?,
         }
@@ -254,37 +317,80 @@ impl Assembler {
         self.text.push(code as u8);
     }
 
-    fn assemble_operator_with_operand<T>(&mut self, code: Bytecode) -> Result<()>
+    fn assemble_operator_with_operand<T>(
+        &mut self,
+        tokens: &mut TokenState,
+        code: Bytecode,
+    ) -> Result<()>
     where
         T: Number,
     {
         self.assemble_operator(code);
 
-        match self.peek_token() {
+        match tokens.peek() {
             Some(Token::Value(Value::Number(number))) => {
-                self.next_token();
+                tokens.next();
                 let value = number
                     .parse::<T>()
                     .map_err(|_| format!("value cannot be parsed: {number}"))?;
                 self.text.extend(value.to_le_bytes());
             }
             Some(Token::Word(_)) if T::SIZE == 8 => {
-                self.assemble_label()?;
+                self.assemble_label(tokens)?;
+            }
+            Some(Token::At) => {
+                tokens.next();
+
+                // TODO: refactor
+                let word = match tokens.next() {
+                    Some(Token::Word(word)) => word,
+                    Some(token) => format!("unexpected token: {token:?}"),
+                    None => todo!(),
+                };
+
+                let Some(mut mtokens) = self.macros.get(&word).cloned().map(TokenState::new) else {
+                    Err(format!(
+                        "macro must be declared before it is expanded: {word}"
+                    ))?
+                };
+
+                match mtokens.next() {
+                    Some(Token::Value(Value::Number(number))) => {
+                        mtokens.next();
+                        let value = number
+                            .parse::<T>()
+                            .map_err(|_| format!("value cannot be parsed: {number}"))?;
+                        self.text.extend(value.to_le_bytes());
+                    }
+                    Some(Token::Word(_)) if T::SIZE == 8 => {
+                        self.assemble_label(&mut mtokens)?;
+                    }
+                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
+                    None => todo!(),
+                }
+
+                if let Some(token) = mtokens.next() {
+                    Err(format!("unexpected token: {token:?}"))?
+                }
             }
             Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => unreachable!(),
+            None => todo!(),
         };
 
         Ok(())
     }
 
-    fn assemble_operator_with_label(&mut self, code: Bytecode) -> Result<()> {
+    fn assemble_operator_with_label(
+        &mut self,
+        tokens: &mut TokenState,
+        code: Bytecode,
+    ) -> Result<()> {
         self.assemble_operator(code);
-        self.assemble_label()
+        self.assemble_label(tokens)
     }
 
-    fn assemble_label(&mut self) -> Result<()> {
-        match self.next_token() {
+    fn assemble_label(&mut self, tokens: &mut TokenState) -> Result<()> {
+        match tokens.next() {
             Some(Token::Word(label)) => {
                 self.unresolved.insert(self.text.len() as u64, label);
                 self.text.extend(0u64.to_le_bytes());
@@ -296,59 +402,16 @@ impl Assembler {
         Ok(())
     }
 
-    fn parse_entry(&mut self) -> Result<String> {
-        self.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
+    fn parse_entry(&mut self, tokens: &mut TokenState) -> Result<String> {
+        tokens.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
 
-        let entry = match self.next_token() {
+        let entry = match tokens.next() {
             Some(Token::Word(entry)) => entry,
             Some(token) => Err(format!("unexpected token: {token:?}"))?,
             _ => unreachable!(),
         };
 
         Ok(entry)
-    }
-
-    fn check(&mut self, tokens: &[Token]) -> bool {
-        let position = self.position;
-        for token in tokens {
-            if Some(token) == self.next_token().as_ref() {
-                continue;
-            } else {
-                self.position = position;
-                return false;
-            }
-        }
-
-        true
-    }
-
-    fn expect(&mut self, tokens: &[Token]) -> Result<()> {
-        self.check(tokens)
-            .then_some(())
-            .ok_or(format!("unexpected token {:?}", self.tokens[self.position]).into())
-    }
-
-    fn next_token(&mut self) -> Option<Token> {
-        let token = self.tokens.get(self.position).cloned()?;
-        self.position += 1;
-        Some(token)
-    }
-
-    fn peek_n_token(&self, n: usize) -> Option<Token> {
-        let position = self.position + n;
-        self.tokens.get(position).cloned()
-    }
-
-    fn peek_token(&self) -> Option<Token> {
-        self.peek_n_token(0)
-    }
-
-    fn next_keyword(&mut self) -> Result<Keyword> {
-        match self.next_token() {
-            Some(Token::Keyword(keyword)) => Ok(keyword),
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => unreachable!(),
-        }
     }
 }
 
@@ -375,7 +438,7 @@ push 10
 cmp
 jmp.lt loop
 ret";
-        let have: Vec<u8> = Assembler::new(&src).assemble()?.into();
+        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             13, 0, 0, 0, 0, 0, 0, 0,
@@ -409,7 +472,7 @@ add:
    load 1
    add
    ret";
-        let have: Vec<u8> = Assembler::new(&src).assemble()?.into();
+        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             8, 0, 0, 0, 0, 0, 0, 0,
@@ -435,13 +498,23 @@ add:
 .data input .word 9
 .data ptr .dword
 
+#define TWO { 2 }
+
+#define TEST {
+    push 1
+    push @TWO
+    sub
+}
+
 main:
     push.d 1
     push.d ptr
     add.d
+    push @TWO
+    @TEST
     ret
 ";
-        let have: Vec<u8> = Assembler::new(&src).assemble()?.into();
+        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             20, 0, 0, 0, 0, 0, 0, 0,
@@ -450,6 +523,10 @@ main:
             Bytecode::PushD as u8, 1, 0, 0, 0, 0, 0, 0, 0,
             Bytecode::PushD as u8, 12, 0, 0, 0, 0, 0, 0, 0,
             Bytecode::AddD as u8,
+            Bytecode::Push as u8, 2, 0, 0, 0,
+            Bytecode::Push as u8, 1, 0, 0, 0,
+            Bytecode::Push as u8, 2, 0, 0, 0,
+            Bytecode::Sub as u8,
             Bytecode::Ret as u8
         ];
         assert_eq!(want, have);

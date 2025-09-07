@@ -63,7 +63,7 @@ impl std::fmt::Display for Bytecode {
             Bytecode::Alloc => write!(f, "{:width$}", "alloc"),
             Bytecode::Cmp => write!(f, "{:width$}", "cmp"),
             Bytecode::CmpD => write!(f, "{:width$}", "cmp.d"),
-            Bytecode::DataPtr => write!(f, "{:width$}", "data"),
+            Bytecode::DataPtr => write!(f, "{:width$}", "dataptr"),
             Bytecode::Div => write!(f, "{:width$}", "div"),
             Bytecode::DivD => write!(f, "{:width$}", "div.d"),
             Bytecode::Dup => write!(f, "{:width$}", "dup"),

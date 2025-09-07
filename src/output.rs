@@ -218,6 +218,7 @@ impl Output {
             match op {
                 Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, &self.labels, op)?,
                 Bytecode::PushD => fmt_with_operand::<i64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::PushB => fmt_with_operand::<i8>(f, &mut pc, &self.labels, op)?,
                 Bytecode::Load => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::LoadD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::LoadB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
@@ -230,6 +231,7 @@ impl Output {
                 Bytecode::JmpGt => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::JmpNe => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::Call => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::DataPtr => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 op => write!(f, "{op}")?,
             }
 
@@ -273,7 +275,7 @@ add:
    add
    ret";
 
-        let output = Assembler::new(&src).assemble()?;
+        let output = Assembler::new().assemble(src)?;
         let have = output.to_string();
         let want = "\
 .entry main
@@ -322,7 +324,7 @@ add:
    load 1
    add
    ret";
-        let want = Assembler::new(&src).assemble()?;
+        let want = Assembler::new().assemble(src)?;
         let serialised = want.clone().serialise();
         let have = Output::deserialise(serialised.as_slice())?;
 

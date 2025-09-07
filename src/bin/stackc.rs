@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     file.read_to_string(&mut src)?;
 
     const OUTPUT_FILE: &str = "a.out";
-    let output = Assembler::new(&src).assemble()?;
+    let output = Assembler::new().assemble(&src)?;
     OpenOptions::new()
         .create(true)
         .write(true)
