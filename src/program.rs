@@ -1,6 +1,7 @@
 use crate::{Number, Result};
 use std::io::{Cursor, Read};
 
+// TODO: write/read -> aload[.bd]/astore[.bd]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Bytecode {

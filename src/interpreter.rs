@@ -72,7 +72,6 @@ impl Interpreter {
         &self.frames
     }
 
-    /// Returns the position of the return instruction
     pub fn run(&mut self) -> Result<()> {
         while let Some(mut current) = self.frames.pop() {
             let fr = current.run(&mut self.pc)?;
@@ -138,7 +137,7 @@ impl Interpreter {
             | FrameResult::RetD(position)
                 if main =>
             {
-                // Make it appear as if the pc is pointing to the return instruction
+                // Make it appear as if the pc is still pointing to the return instruction
                 self.pc.set_position(position);
                 self.frames.push(current);
                 Some(Return::Main)
