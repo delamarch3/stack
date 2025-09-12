@@ -5,49 +5,55 @@ use crate::Result;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
+    Char(char),
     Number(String),
     String(String),
-    Char(char),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    Word(String),
-    Keyword(Keyword),
-    Value(Value),
-    Dot,
+    At,
     Colon,
     Comma,
-    At,
-    Hash,
+    Dot,
     Eof,
+    Hash,
+    Keyword(Keyword),
     LBrace,
     RBrace,
+    Value(Value),
+    Word(String),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Keyword {
-    Entry,
+    Byte,
     Data,
+    Define,
+    Dword,
+    Entry,
+    Include,
+    String,
     Text,
     Word,
-    Dword,
-    Byte,
-    String,
 }
 
 impl<'a> TryFrom<&'a str> for Keyword {
     type Error = Box<dyn std::error::Error>;
 
     fn try_from(value: &'a str) -> Result<Self> {
+        use Keyword::*;
+
         match value {
-            "entry" => Ok(Keyword::Entry),
-            "data" => Ok(Keyword::Data),
-            "text" => Ok(Keyword::Text),
-            "word" => Ok(Keyword::Word),
-            "dword" => Ok(Keyword::Dword),
-            "byte" => Ok(Keyword::Byte),
-            "string" => Ok(Keyword::String),
+            "entry" => Ok(Entry),
+            "data" => Ok(Data),
+            "text" => Ok(Text),
+            "word" => Ok(Word),
+            "dword" => Ok(Dword),
+            "byte" => Ok(Byte),
+            "string" => Ok(String),
+            "include" => Ok(Include),
+            "define" => Ok(Define),
             _ => Err("not a keyword")?,
         }
     }
@@ -55,9 +61,11 @@ impl<'a> TryFrom<&'a str> for Keyword {
 
 impl Keyword {
     pub fn is_data_type(&self) -> bool {
+        use Keyword::*;
+
         match self {
-            Keyword::Word | Keyword::Dword | Keyword::Byte | Keyword::String => true,
-            Keyword::Entry | Keyword::Data | Keyword::Text => false,
+            Word | Dword | Byte | String => true,
+            Entry | Data | Text | Include | Define => false,
         }
     }
 }

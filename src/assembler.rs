@@ -209,11 +209,10 @@ impl Assembler {
     }
 
     fn register_macro(&mut self, tokens: &mut TokenState) -> Result<()> {
-        let directive = tokens.next_word()?;
+        let keyword = tokens.next_keyword()?;
 
-        // TODO: keywords?
-        match directive.as_str() {
-            "define" => {
+        match keyword {
+            Keyword::Define => {
                 let word = tokens.next_word()?;
 
                 tokens.expect(&[Token::LBrace])?;
@@ -222,7 +221,7 @@ impl Assembler {
 
                 self.macros.insert(word, mtokens);
             }
-            "include" => {
+            Keyword::Include => {
                 // TODO: support paths relative to the file doing the include
                 let path = match tokens.next_value()? {
                     Value::String(path) => path,
@@ -238,7 +237,7 @@ impl Assembler {
 
                 self.assemble_tokens(&mut mtokens)?;
             }
-            _ => Err(format!("unknown macro directive"))?,
+            _ => Err(format!("unexpected keyword: {keyword:?}"))?,
         }
 
         Ok(())
