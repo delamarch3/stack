@@ -26,11 +26,8 @@ main:
     system
     pop
 
-    push @STDOUT      ; fd
-    dataptr message   ; buf
-    push.d @MESSAGESZ ; size
-    push @WRITE
-    system
-    pop
+    dataptr message
+    push.d @MESSAGESZ
+    call print
 
     ret

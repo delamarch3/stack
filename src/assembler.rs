@@ -30,7 +30,17 @@ impl Label {
         let section = Section::Text;
         Self { section, offset }
     }
+
+    fn resolve_offset(&self, data: &Vec<u8>) -> u64 {
+        // Since the program is loaded as [entry][data][text], the data section offsets stay as is
+        // while the text offsets are offset further by the data length
+        (match self.section {
+            Section::Data => mem::size_of::<u64>() + self.offset,
+            Section::Text => mem::size_of::<u64>() + self.offset + data.len(),
+        }) as u64
+    }
 }
+
 pub struct Assembler {
     data: Vec<u8>,
     text: Vec<u8>,
@@ -61,30 +71,31 @@ impl Assembler {
 
         let entry = self.parse_entry(&mut tokens)?;
 
-        self.assemble_tokens(&mut tokens)?;
+        self.assemble_bytecode(&mut tokens)?;
 
         // Add entry offset to labels
         let mut labels = HashMap::new();
-        let offset = self.resolve_label(&entry)? as u64;
-        labels.insert(offset, entry);
+        let entry_offset = self.resolve_label(&entry)? as u64;
+        labels.insert(entry_offset, entry);
 
-        // Backpatch and add other offsets to labels
-        let unresolved = std::mem::take(&mut self.unresolved);
-        for (i, r#ref) in unresolved.into_iter().map(|(k, v)| (k as usize, v)) {
-            let offset = self.resolve_label(&r#ref)? as u64;
-            self.text[i..i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
-            labels.insert(offset, r#ref);
-            // TODO: labels are only inserted if they are referenced,
-            // but we still see their instructions in the disassembly
-            // Also looks like duplicate labels are allowed
+        // Resolve offsets - they will need to be shifted forward by the length of the data section
+        for (label, value) in &self.labels {
+            labels.insert(value.resolve_offset(&self.data), label.clone());
         }
 
-        let out = Output::new(offset, self.data, self.text, labels);
+        // Backpatch
+        let unresolved = std::mem::take(&mut self.unresolved);
+        for (i, r#ref) in unresolved.into_iter().map(|(k, v)| (k as usize, v)) {
+            let offset = self.resolve_label(&r#ref)?;
+            self.text[i..i + mem::size_of::<u64>()].copy_from_slice(&offset.to_le_bytes());
+        }
+
+        let out = Output::new(entry_offset, self.data, self.text, labels);
 
         Ok(out)
     }
 
-    fn assemble_tokens(&mut self, tokens: &mut TokenState) -> Result<()> {
+    fn assemble_bytecode(&mut self, tokens: &mut TokenState) -> Result<()> {
         while let Some(token) = tokens.next() {
             match token {
                 Token::Word(word) => {
@@ -118,17 +129,12 @@ impl Assembler {
         Ok(())
     }
 
-    fn resolve_label(&self, r#ref: &str) -> Result<usize> {
+    fn resolve_label(&self, r#ref: &str) -> Result<u64> {
         let Some(label) = self.labels.get(r#ref) else {
             Err(format!("could not resolve label: {}", r#ref))?
         };
 
-        // Since the program is loaded as [entry][data][text], the data section offsets stay as is
-        // while the text offsets are offset further by the data length
-        let offset = match label.section {
-            Section::Data => mem::size_of::<u64>() + label.offset,
-            Section::Text => mem::size_of::<u64>() + label.offset + self.data.len(),
-        };
+        let offset = label.resolve_offset(&self.data);
 
         Ok(offset)
     }
@@ -240,7 +246,7 @@ impl Assembler {
                 let mut mtokens =
                     TokenState::new(Tokeniser::new(contents.as_str()).into_iter().collect());
 
-                self.assemble_tokens(&mut mtokens)?;
+                self.assemble_bytecode(&mut mtokens)?;
             }
             _ => Err(format!("unexpected keyword: {keyword:?}"))?,
         }
@@ -257,7 +263,7 @@ impl Assembler {
             ))?
         };
 
-        self.assemble_tokens(&mut tokens)?;
+        self.assemble_bytecode(&mut tokens)?;
 
         Ok(())
     }
