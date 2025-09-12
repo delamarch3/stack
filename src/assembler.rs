@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::mem;
+use std::path::Path;
 
 use crate::output::Output;
 use crate::program::Bytecode;
@@ -291,14 +292,14 @@ impl Assembler {
             "pop" | "pop.w" => self.assemble_operator(Bytecode::Pop),
             "pop.b" => self.assemble_operator(Bytecode::PopB),
             "pop.d" => self.assemble_operator(Bytecode::PopD),
-            "read" => self.assemble_operator(Bytecode::Read),
+            "aload" => self.assemble_operator(Bytecode::ALoad),
             "ret" => self.assemble_operator(Bytecode::Ret),
             "ret.d" => self.assemble_operator(Bytecode::RetD),
             "ret.w" => self.assemble_operator(Bytecode::RetW),
             "sub" | "sub.w" => self.assemble_operator(Bytecode::Sub),
             "sub.b" => self.assemble_operator(Bytecode::SubB),
             "sub.d" => self.assemble_operator(Bytecode::SubD),
-            "write" => self.assemble_operator(Bytecode::Write),
+            "astore" => self.assemble_operator(Bytecode::AStore),
             "call" => self.assemble_operator_with_label(tokens, Bytecode::Call)?,
             "jmp" => self.assemble_operator_with_label(tokens, Bytecode::Jmp)?,
             "jmp.eq" => self.assemble_operator_with_label(tokens, Bytecode::JmpEq)?,

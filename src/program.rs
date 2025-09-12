@@ -5,6 +5,8 @@ use std::io::{Cursor, Read};
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Bytecode {
+    ALoad,
+    AStore,
     Add,
     AddB,
     AddD,
@@ -29,14 +31,13 @@ pub enum Bytecode {
     LoadD,
     Mul,
     MulD,
-    Ptr,
     Pop,
     PopB,
     PopD,
+    Ptr,
     Push,
     PushB,
     PushD,
-    Read,
     Store,
     StoreB,
     StoreD,
@@ -44,7 +45,6 @@ pub enum Bytecode {
     SubB,
     SubD,
     System,
-    Write,
 
     Call,
     Panic,
@@ -58,6 +58,8 @@ impl std::fmt::Display for Bytecode {
         let width = f.width().unwrap_or_default();
 
         match self {
+            Bytecode::ALoad => write!(f, "{:width$}", "aload"),
+            Bytecode::AStore => write!(f, "{:width$}", "astore"),
             Bytecode::Add => write!(f, "{:width$}", "add"),
             Bytecode::AddB => write!(f, "{:width$}", "add.b"),
             Bytecode::AddD => write!(f, "{:width$}", "add.d"),
@@ -82,14 +84,13 @@ impl std::fmt::Display for Bytecode {
             Bytecode::LoadD => write!(f, "{:width$}", "load.d"),
             Bytecode::Mul => write!(f, "{:width$}", "mul"),
             Bytecode::MulD => write!(f, "{:width$}", "mul.d"),
-            Bytecode::Ptr => write!(f, "{:width$}", "ptr"),
             Bytecode::Pop => write!(f, "{:width$}", "pop"),
             Bytecode::PopB => write!(f, "{:width$}", "pop.b"),
             Bytecode::PopD => write!(f, "{:width$}", "pop.d"),
+            Bytecode::Ptr => write!(f, "{:width$}", "ptr"),
             Bytecode::Push => write!(f, "{:width$}", "push"),
             Bytecode::PushB => write!(f, "{:width$}", "push.b"),
             Bytecode::PushD => write!(f, "{:width$}", "push.d"),
-            Bytecode::Read => write!(f, "{:width$}", "read"),
             Bytecode::Store => write!(f, "{:width$}", "store"),
             Bytecode::StoreB => write!(f, "{:width$}", "store.b"),
             Bytecode::StoreD => write!(f, "{:width$}", "store.d"),
@@ -97,7 +98,6 @@ impl std::fmt::Display for Bytecode {
             Bytecode::SubB => write!(f, "{:width$}", "sub.b"),
             Bytecode::SubD => write!(f, "{:width$}", "sub.d"),
             Bytecode::System => write!(f, "{:width$}", "system"),
-            Bytecode::Write => write!(f, "{:width$}", "write"),
 
             Bytecode::Call => write!(f, "{:width$}", "call"),
             Bytecode::Panic => write!(f, "{:width$}", "panic"),

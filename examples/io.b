@@ -16,7 +16,7 @@ main:
               ; dup id
     push.d 0  ; offset
     push.b 65 ; data
-    write
+    astore
 
     push 1    ; stdout
     load.d 0  ; buf

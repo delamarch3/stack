@@ -10,10 +10,10 @@ main:
 
     push.d 0
     push 64
-    write
+    astore
 
     load.d 0
     push.d 0
-    read
+    aload
 
     ret
