@@ -207,10 +207,18 @@ impl Frame {
     }
 
     fn system(&mut self) -> Result<()> {
+        // TODO
+        const EXIT: i32 = 1;
+        const READ: i32 = 3;
+        const WRITE: i32 = 4;
+        const OPEN: i32 = 5;
+        const CLOSE: i32 = 6;
+        const FSYNC: i32 = 95;
+
         let call = self.opstack.pop::<i32>();
 
         match call {
-            4 => {
+            WRITE => {
                 let size = self.opstack.pop::<u64>() as usize;
                 let ptr = self.opstack.pop::<u64>() as *const u8;
                 let fd = self.opstack.pop::<i32>();
