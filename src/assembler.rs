@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::mem;
-use std::path::Path;
 
 use crate::output::Output;
 use crate::program::Bytecode;
@@ -275,6 +274,13 @@ impl Assembler {
             "add.b" => self.assemble_operator(Bytecode::AddB),
             "add.d" => self.assemble_operator(Bytecode::AddD),
             "alloc" => self.assemble_operator(Bytecode::Alloc),
+            "aload" => self.assemble_operator(Bytecode::ALoad),
+            "aload.b" => self.assemble_operator(Bytecode::ALoadB),
+            "aload.d" => self.assemble_operator(Bytecode::ALoadD),
+            "astore" => self.assemble_operator(Bytecode::AStore),
+            "astore.b" => self.assemble_operator(Bytecode::AStoreB),
+            "astore.d" => self.assemble_operator(Bytecode::AStoreD),
+            "call" => self.assemble_operator_with_label(tokens, Bytecode::Call)?,
             "cmp" | "cmp.w" => self.assemble_operator(Bytecode::Cmp),
             "cmp.d" => self.assemble_operator(Bytecode::CmpD),
             "dataptr" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::DataPtr)?,
@@ -285,42 +291,39 @@ impl Assembler {
             "get" | "get.w" => self.assemble_operator(Bytecode::Get),
             "get.b" => self.assemble_operator(Bytecode::GetB),
             "get.d" => self.assemble_operator(Bytecode::GetD),
-            "mul" | "mul.w" => self.assemble_operator(Bytecode::Mul),
-            "mul.d" => self.assemble_operator(Bytecode::MulD),
-            "panic" => self.assemble_operator(Bytecode::Panic),
-            "ptr" => self.assemble_operator(Bytecode::Ptr),
-            "pop" | "pop.w" => self.assemble_operator(Bytecode::Pop),
-            "pop.b" => self.assemble_operator(Bytecode::PopB),
-            "pop.d" => self.assemble_operator(Bytecode::PopD),
-            "aload" => self.assemble_operator(Bytecode::ALoad),
-            "ret" => self.assemble_operator(Bytecode::Ret),
-            "ret.d" => self.assemble_operator(Bytecode::RetD),
-            "ret.w" => self.assemble_operator(Bytecode::RetW),
-            "sub" | "sub.w" => self.assemble_operator(Bytecode::Sub),
-            "sub.b" => self.assemble_operator(Bytecode::SubB),
-            "sub.d" => self.assemble_operator(Bytecode::SubD),
-            "astore" => self.assemble_operator(Bytecode::AStore),
-            "call" => self.assemble_operator_with_label(tokens, Bytecode::Call)?,
             "jmp" => self.assemble_operator_with_label(tokens, Bytecode::Jmp)?,
             "jmp.eq" => self.assemble_operator_with_label(tokens, Bytecode::JmpEq)?,
             "jmp.gt" => self.assemble_operator_with_label(tokens, Bytecode::JmpGt)?,
             "jmp.lt" => self.assemble_operator_with_label(tokens, Bytecode::JmpLt)?,
             "jmp.ne" => self.assemble_operator_with_label(tokens, Bytecode::JmpNe)?,
-            "push" | "push.w" => {
-                self.assemble_operator_with_operand::<i32>(tokens, Bytecode::Push)?
-            }
-            "push.d" => self.assemble_operator_with_operand::<i64>(tokens, Bytecode::PushD)?,
-            "push.b" => self.assemble_operator_with_operand::<i8>(tokens, Bytecode::PushB)?,
             "load" | "load.w" => {
                 self.assemble_operator_with_operand::<u64>(tokens, Bytecode::Load)?
             }
             "load.b" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LoadB)?,
             "load.d" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LoadD)?,
+            "mul" | "mul.w" => self.assemble_operator(Bytecode::Mul),
+            "mul.d" => self.assemble_operator(Bytecode::MulD),
+            "panic" => self.assemble_operator(Bytecode::Panic),
+            "pop" | "pop.w" => self.assemble_operator(Bytecode::Pop),
+            "pop.b" => self.assemble_operator(Bytecode::PopB),
+            "pop.d" => self.assemble_operator(Bytecode::PopD),
+            "ptr" => self.assemble_operator(Bytecode::Ptr),
+            "push" | "push.w" => {
+                self.assemble_operator_with_operand::<i32>(tokens, Bytecode::Push)?
+            }
+            "push.b" => self.assemble_operator_with_operand::<i8>(tokens, Bytecode::PushB)?,
+            "push.d" => self.assemble_operator_with_operand::<i64>(tokens, Bytecode::PushD)?,
+            "ret" => self.assemble_operator(Bytecode::Ret),
+            "ret.d" => self.assemble_operator(Bytecode::RetD),
+            "ret.w" => self.assemble_operator(Bytecode::RetW),
             "store" | "store.w" => {
                 self.assemble_operator_with_operand::<u64>(tokens, Bytecode::Store)?
             }
             "store.b" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::StoreB)?,
             "store.d" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::StoreD)?,
+            "sub" | "sub.w" => self.assemble_operator(Bytecode::Sub),
+            "sub.b" => self.assemble_operator(Bytecode::SubB),
+            "sub.d" => self.assemble_operator(Bytecode::SubD),
             "system" => self.assemble_operator(Bytecode::System),
             word => Err(format!("unknown instruction: {word}"))?,
         }

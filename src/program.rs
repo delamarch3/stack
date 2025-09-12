@@ -1,12 +1,15 @@
 use crate::{Number, Result};
 use std::io::{Cursor, Read};
 
-// TODO: write/read -> aload[.bd]/astore[.bd]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Bytecode {
     ALoad,
+    ALoadB,
+    ALoadD,
     AStore,
+    AStoreB,
+    AStoreD,
     Add,
     AddB,
     AddD,
@@ -59,7 +62,11 @@ impl std::fmt::Display for Bytecode {
 
         match self {
             Bytecode::ALoad => write!(f, "{:width$}", "aload"),
+            Bytecode::ALoadB => write!(f, "{:width$}", "aload.b"),
+            Bytecode::ALoadD => write!(f, "{:width$}", "aload.d"),
             Bytecode::AStore => write!(f, "{:width$}", "astore"),
+            Bytecode::AStoreB => write!(f, "{:width$}", "astore.b"),
+            Bytecode::AStoreD => write!(f, "{:width$}", "astore.d"),
             Bytecode::Add => write!(f, "{:width$}", "add"),
             Bytecode::AddB => write!(f, "{:width$}", "add.b"),
             Bytecode::AddD => write!(f, "{:width$}", "add.d"),
