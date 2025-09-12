@@ -306,6 +306,22 @@ impl TokenState {
         }
     }
 
+    pub fn next_word(&mut self) -> Result<String> {
+        match self.next() {
+            Some(Token::Word(word)) => Ok(word),
+            Some(token) => Err(format!("unexpected token: {token:?}"))?,
+            None => todo!(),
+        }
+    }
+
+    pub fn next_value(&mut self) -> Result<Value> {
+        match self.next() {
+            Some(Token::Value(value)) => Ok(value),
+            Some(token) => Err(format!("unexpected token: {token:?}"))?,
+            None => todo!(),
+        }
+    }
+
     pub fn take_while<F>(&mut self, f: F) -> Vec<Token>
     where
         F: Fn(&Token) -> bool,

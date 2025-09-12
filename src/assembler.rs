@@ -138,11 +138,7 @@ impl Assembler {
     }
 
     fn assemble_data(&mut self, tokens: &mut TokenState) -> Result<()> {
-        let name = match tokens.next() {
-            Some(Token::Word(name)) => name,
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => todo!(),
-        };
+        let name = tokens.next_word()?;
 
         let offset = self.data.len();
         if self
@@ -213,20 +209,12 @@ impl Assembler {
     }
 
     fn register_macro(&mut self, tokens: &mut TokenState) -> Result<()> {
-        let directive = match tokens.next() {
-            Some(Token::Word(word)) => word,
-            Some(token) => format!("unexpected token: {token:?}"),
-            None => todo!(),
-        };
+        let directive = tokens.next_word()?;
 
         // TODO: keywords?
         match directive.as_str() {
             "define" => {
-                let word = match tokens.next() {
-                    Some(Token::Word(word)) => word,
-                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
-                    None => todo!(),
-                };
+                let word = tokens.next_word()?;
 
                 tokens.expect(&[Token::LBrace])?;
                 let mtokens = tokens.take_while(|token| token != &Token::RBrace);
@@ -236,10 +224,9 @@ impl Assembler {
             }
             "include" => {
                 // TODO: support paths relative to the file doing the include
-                let path = match tokens.next() {
-                    Some(Token::Value(Value::String(path))) => path,
-                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
-                    None => todo!(),
+                let path = match tokens.next_value()? {
+                    Value::String(path) => path,
+                    value => format!("unexpected value: {value:?}"),
                 };
 
                 let mut contents = String::new();
@@ -258,11 +245,7 @@ impl Assembler {
     }
 
     fn assemble_expansion(&mut self, tokens: &mut TokenState) -> Result<()> {
-        let word = match tokens.next() {
-            Some(Token::Word(word)) => word,
-            Some(token) => format!("unexpected token: {token:?}"),
-            None => todo!(),
-        };
+        let word = tokens.next_word()?;
 
         let Some(mut tokens) = self.macros.get(&word).cloned().map(TokenState::new) else {
             Err(format!(
@@ -363,12 +346,7 @@ impl Assembler {
                 tokens.next();
 
                 // TODO: refactor
-                let word = match tokens.next() {
-                    Some(Token::Word(word)) => word,
-                    Some(token) => format!("unexpected token: {token:?}"),
-                    None => todo!(),
-                };
-
+                let word = tokens.next_word()?;
                 let Some(mut mtokens) = self.macros.get(&word).cloned().map(TokenState::new) else {
                     Err(format!(
                         "macro must be declared before it is expanded: {word}"
@@ -411,26 +389,16 @@ impl Assembler {
     }
 
     fn assemble_label(&mut self, tokens: &mut TokenState) -> Result<()> {
-        match tokens.next() {
-            Some(Token::Word(label)) => {
-                self.unresolved.insert(self.text.len() as u64, label);
-                self.text.extend(0u64.to_le_bytes());
-            }
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            _ => unreachable!(),
-        };
+        let label = tokens.next_word()?;
+        self.unresolved.insert(self.text.len() as u64, label);
+        self.text.extend(0u64.to_le_bytes());
 
         Ok(())
     }
 
     fn parse_entry(&mut self, tokens: &mut TokenState) -> Result<String> {
         tokens.expect(&[Token::Dot, Token::Keyword(Keyword::Entry)])?;
-
-        let entry = match tokens.next() {
-            Some(Token::Word(entry)) => entry,
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            _ => unreachable!(),
-        };
+        let entry = tokens.next_word()?;
 
         Ok(entry)
     }
