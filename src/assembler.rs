@@ -89,8 +89,13 @@ impl Assembler {
             match token {
                 Token::Word(word) => {
                     if tokens.check(&[Token::Colon]) {
-                        self.labels
-                            .insert(word.to_string(), Label::text(self.text.len()));
+                        if self
+                            .labels
+                            .insert(word.to_string(), Label::text(self.text.len()))
+                            .is_some()
+                        {
+                            Err(format!("duplicate label: {word}"))?;
+                        }
                         continue;
                     }
 
