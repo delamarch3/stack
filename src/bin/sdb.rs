@@ -8,19 +8,20 @@ use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+// TODO: support reading longs from locals/stack
 enum Command {
-    Run,
-    Step,
-    Continue,
-    Stack,
-    Peek,
-    BreakPosition(u64),
-    BreakLabel(String),
-    Delete(u64),
-    List,
-    Variable(u64),
     Backtrace,
+    BreakLabel(String),
+    BreakPosition(u64),
+    Continue,
+    Delete(u64),
     Disassembly,
+    List,
+    Peek,
+    Run,
+    Stack,
+    Step,
+    Variable(u64),
 }
 
 fn main() -> Result<()> {

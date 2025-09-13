@@ -46,7 +46,7 @@ impl Debugger {
     }
 
     pub fn fmt_line(&self, w: &mut impl Write, position: u64) -> Result<()> {
-        const LOOK_FORWARD: usize = 4;
+        const LOOK_FORWARD: usize = 8;
         const POINTER: &str = "->";
         const WIDTH: usize = 2;
 
@@ -134,7 +134,7 @@ impl Debugger {
 
     pub fn r#continue(&mut self) -> Result<u64> {
         if matches!(self.state, State::Off) {
-            Err("no prgram currently running")?
+            Err("no program currently running")?
         }
 
         let finished = if !self.breakpoints.is_empty() {

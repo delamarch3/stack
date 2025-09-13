@@ -189,7 +189,9 @@ impl Frame {
         let id = self.opstack.pop::<u64>();
         let src = data.to_le_bytes();
 
-        self.heap.write(id as usize, offset as usize, src.as_ref());
+        if !self.heap.write(id as usize, offset as usize, src.as_ref()) {
+            Err("{id}: no write")?;
+        }
 
         Ok(())
     }
@@ -199,7 +201,9 @@ impl Frame {
         let id = self.opstack.pop::<u64>();
         let mut dst = T::default().to_le_bytes();
 
-        self.heap.read(id as usize, offset as usize, dst.as_mut());
+        if !self.heap.read(id as usize, offset as usize, dst.as_mut()) {
+            Err("{id}: no read")?;
+        }
 
         self.opstack.push(T::from_le_bytes(dst.as_ref()));
 
@@ -251,7 +255,7 @@ impl Frame {
     fn call(&mut self, pc: &mut Program<Vec<u8>>) -> Result<FrameResult> {
         let mut locals = Locals::default();
         locals.copy_from_slice(self.opstack.as_slice());
-        self.opstack.clear();
+        self.opstack.clear(); // TODO: would be nicer to avoid clearing the opstack
 
         let entry = pc.next::<u64>()?;
         let ret = pc.position();
