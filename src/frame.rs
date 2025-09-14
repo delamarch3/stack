@@ -231,9 +231,7 @@ impl Frame {
                     Err("invalid ptr")?
                 }
 
-                // SAFETY: TODO
                 let mut f = unsafe { File::from_raw_fd(fd) };
-                // SAFETY: TODO
                 let s = unsafe { std::slice::from_raw_parts(ptr, size) };
 
                 let r = match f.write(s) {

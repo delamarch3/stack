@@ -8,7 +8,6 @@ use stack::output::Output;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-// TODO: support reading longs from locals/stack
 enum Command {
     Backtrace,
     BreakLabel(String),
@@ -18,10 +17,12 @@ enum Command {
     Disassembly,
     List,
     Peek,
+    PeekLong,
     Run,
     Stack,
     Step,
     Variable(u64),
+    VariableLong(u64),
 }
 
 fn main() -> Result<()> {
@@ -75,12 +76,16 @@ fn parse_evaluate(stdout: &mut Stdout, debugger: &mut Debugger, line: String) ->
         }
         Command::Stack => writeln!(stdout, "{}", debugger.stack())?,
         Command::Peek => writeln!(stdout, "{:?}", debugger.peek::<i32>())?,
+        Command::PeekLong => writeln!(stdout, "{:?}", debugger.peek::<i64>())?,
         Command::BreakPosition(position) => debugger.set_breakpoint(position)?,
         Command::BreakLabel(label) => debugger.set_label_breakpoint(&label)?,
         Command::Delete(position) => debugger.delete_breakpoint(position),
         Command::List => debugger.fmt_breakpoints(stdout)?,
         Command::Variable(variable) => {
             writeln!(stdout, "{}", debugger.variable::<i32>(variable))?;
+        }
+        Command::VariableLong(variable) => {
+            writeln!(stdout, "{}", debugger.variable::<i64>(variable))?;
         }
         Command::Backtrace => debugger.fmt_backtrace(stdout)?,
         Command::Disassembly => write!(stdout, "{}", debugger.output())?,
@@ -122,7 +127,15 @@ fn parse_command(line: &str) -> Result<Command> {
             let variable = variable.parse::<u64>()?;
             Command::Variable(variable)
         }
+        "vl" | "varl" => {
+            let Some(variable) = parts.next() else {
+                Err("could not parse argument")?
+            };
+            let variable = variable.parse::<u64>()?;
+            Command::VariableLong(variable)
+        }
         "p" | "peek" => Command::Peek,
+        "pl" | "peekl" => Command::PeekLong,
         "bt" | "backtrace" => Command::Backtrace,
         "dis" | "disassembly" => Command::Disassembly,
         cmd => Err(format!("invalid command: {cmd}"))?,
