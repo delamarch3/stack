@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::format;
 use std::fs::File;
 use std::io::Read;
 use std::mem;
@@ -352,6 +353,10 @@ impl Assembler {
                     .parse::<T>()
                     .map_err(|_| format!("value cannot be parsed: {number}"))?;
                 self.text.extend(value.to_le_bytes());
+            }
+            Some(Token::Value(Value::Char(char))) if T::SIZE == 4 => {
+                tokens.next();
+                self.text.extend((char as u32).to_le_bytes());
             }
             Some(Token::Word(_)) if T::SIZE == 8 => {
                 self.assemble_label(tokens)?;

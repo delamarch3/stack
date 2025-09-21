@@ -8,26 +8,30 @@ main:
     store.d 0
 
     load.d 0
-    push 65
+    push 'A'
     call array_push_byte
 
     load.d 0
-    push 66
+    push 'B'
     call array_push_byte
 
     load.d 0
-    push 67
+    push 'C'
     call array_push_byte
 
     load.d 0
-    push 10
+    push '\n'
+    call array_push_byte
+
+    load.d 0
+    push '\n'
     call array_push_byte
 
     load.d 0
     push.d 0
     aload.d
     ptr
-    push.d 4
+    push.d 5
     call print
 
     ret
