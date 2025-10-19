@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::format;
 use std::fs::File;
 use std::io::Read;
 use std::mem;
@@ -76,7 +75,7 @@ impl Assembler {
 
         // Add entry offset to labels
         let mut labels = HashMap::new();
-        let entry_offset = self.resolve_label(&entry)? as u64;
+        let entry_offset = self.resolve_label(&entry)?;
         labels.insert(entry_offset, entry);
 
         // Resolve offsets - they will need to be shifted forward by the length of the data section
@@ -294,7 +293,9 @@ impl Assembler {
             "get.d" => self.assemble_operator(Bytecode::GetD),
             "jmp" => self.assemble_operator_with_label(tokens, Bytecode::Jmp)?,
             "jmp.eq" => self.assemble_operator_with_label(tokens, Bytecode::JmpEq)?,
+            "jmp.ge" => self.assemble_operator_with_label(tokens, Bytecode::JmpGe)?,
             "jmp.gt" => self.assemble_operator_with_label(tokens, Bytecode::JmpGt)?,
+            "jmp.le" => self.assemble_operator_with_label(tokens, Bytecode::JmpLe)?,
             "jmp.lt" => self.assemble_operator_with_label(tokens, Bytecode::JmpLt)?,
             "jmp.ne" => self.assemble_operator_with_label(tokens, Bytecode::JmpNe)?,
             "load" | "load.w" => {
