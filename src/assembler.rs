@@ -355,9 +355,21 @@ impl Assembler {
                     .map_err(|_| format!("value cannot be parsed: {number}"))?;
                 self.text.extend(value.to_le_bytes());
             }
+            Some(Token::Value(Value::Char(char))) if T::SIZE == 1 => {
+                if !char.is_ascii() {
+                    Err(format!("non-ascii char cannot be entered with push.b"))?
+                }
+
+                tokens.next();
+                self.text.extend((char as u8).to_le_bytes());
+            }
             Some(Token::Value(Value::Char(char))) if T::SIZE == 4 => {
                 tokens.next();
                 self.text.extend((char as u32).to_le_bytes());
+            }
+            Some(Token::Value(Value::Char(char))) if T::SIZE == 8 => {
+                tokens.next();
+                self.text.extend((char as u64).to_le_bytes());
             }
             Some(Token::Word(_)) if T::SIZE == 8 => {
                 self.assemble_label(tokens)?;
