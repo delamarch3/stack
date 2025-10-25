@@ -238,7 +238,34 @@ impl<'s> Tokeniser<'s> {
                 }
                 '"' => {
                     self.src.next();
-                    let value = self.take_while(|c| c != '"');
+
+                    let mut value = String::new();
+                    while let Some(c) = self.src.peek() {
+                        if *c == '"' {
+                            break;
+                        }
+
+                        let mut c = *c;
+                        self.src.next();
+
+                        if c == '\\' {
+                            c = match self.src.next() {
+                                Some(c) => match c {
+                                    '\\' => '\\',
+                                    '\'' => '\'',
+                                    'r' => '\r',
+                                    't' => '\t',
+                                    'n' => '\n',
+                                    '0' => '\0',
+                                    _ => panic!("unknown character escape"),
+                                },
+                                None => panic!("expected closing \""),
+                            }
+                        };
+
+                        value.push(c);
+                    }
+
                     let Some('"') = self.src.next() else {
                         panic!("expected closing \"")
                     };
@@ -367,7 +394,7 @@ mod test {
 .entry main
 
 .data c .byte '\n'
-.data s .string "Hello, World!"
+.data s .string "Hello, World!\t\n\0"
 .data n .word -255
 .data c2 .word '🤠'
 
@@ -394,7 +421,7 @@ ret"###,
                     Token::Word("s".into()),
                     Token::Dot,
                     Token::Keyword(Keyword::String),
-                    Token::Value(Value::String("Hello, World!".into())),
+                    Token::Value(Value::String("Hello, World!\t\n\0".into())),
                     Token::Dot,
                     Token::Keyword(Keyword::Data),
                     Token::Word("n".into()),
