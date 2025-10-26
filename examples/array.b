@@ -30,7 +30,6 @@ main:
     load.d 0
     push.d 0
     aload.d
-    ptr
     push.d 5
     call print
 

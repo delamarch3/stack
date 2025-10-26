@@ -1,4 +1,3 @@
-use std::ptr;
 use std::sync::Mutex;
 
 pub struct Allocation {
@@ -22,56 +21,54 @@ pub struct Heap {
 }
 
 impl Heap {
-    pub fn alloc(&self, size: usize) -> usize {
+    pub fn alloc(&self, size: usize) -> *const u8 {
         let mut allocations = self.allocations.lock().unwrap();
         let mut free = self.free.lock().unwrap();
 
         let mut found = None;
         for (i, id) in free.iter().enumerate() {
-            if let Some(a) = allocations.get(*id) {
-                if a.mem.len() >= size {
-                    found = Some((i, *id))
+            if let Some(alloc) = allocations.get(*id) {
+                if alloc.mem.len() >= size {
+                    found = Some((i, *id, alloc.mem.as_ptr()));
+                    break;
                 }
             }
         }
 
-        if let Some((i, id)) = found {
+        if let Some((i, id, ptr)) = found {
             allocations[id].free = false;
             free.remove(i);
 
-            return id;
+            return ptr;
         }
 
-        let a = Allocation::new(size);
-        let id = allocations.len();
-        allocations.push(a);
+        let alloc = Allocation::new(size);
+        let ptr = alloc.mem.as_ptr();
+        allocations.push(alloc);
 
-        id
+        ptr
     }
 
-    pub fn ptr(&self, id: usize) -> *const u8 {
-        let allocations = self.allocations.lock().unwrap();
-        let Some(allocation) = allocations.get(id) else {
-            return ptr::null();
-        };
-
-        allocation.mem.as_ptr()
-    }
-
-    pub fn free(&self, id: usize) {
+    pub fn free(&self, ptr: *const u8) {
         let mut allocations = self.allocations.lock().unwrap();
         let mut free = self.free.lock().unwrap();
 
-        if let Some(allocation) = allocations.get_mut(id) {
-            allocation.free = true;
-            free.push(id);
-        }
+        let Some((id, allocation)) = allocations
+            .iter_mut()
+            .enumerate()
+            .find(|(_, alloc)| alloc.mem.as_ptr() == ptr)
+        else {
+            todo!()
+        };
+
+        allocation.free = true;
+        free.push(id);
     }
 
-    pub fn read(&self, id: usize, offset: usize, dst: &mut [u8]) -> bool {
-        let mut allocations = self.allocations.lock().unwrap();
+    pub fn read(&self, ptr: *const u8, offset: usize, dst: &mut [u8]) -> bool {
+        let allocations = self.allocations.lock().unwrap();
 
-        let Some(allocation) = allocations.get_mut(id) else {
+        let Some(allocation) = allocations.iter().find(|alloc| alloc.mem.as_ptr() == ptr) else {
             return false;
         };
 
@@ -82,10 +79,13 @@ impl Heap {
         true
     }
 
-    pub fn write(&self, id: usize, offset: usize, src: &[u8]) -> bool {
+    pub fn write(&self, ptr: *const u8, offset: usize, src: &[u8]) -> bool {
         let mut allocations = self.allocations.lock().unwrap();
 
-        let Some(allocation) = allocations.get_mut(id) else {
+        let Some(allocation) = allocations
+            .iter_mut()
+            .find(|alloc| alloc.mem.as_ptr() == ptr)
+        else {
             return false;
         };
 

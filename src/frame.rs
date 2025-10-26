@@ -95,7 +95,6 @@ impl Frame {
             Bytecode::Pop => self.opstack.drop::<i32>(),
             Bytecode::PopB => self.opstack.drop::<i8>(),
             Bytecode::PopD => self.opstack.drop::<i64>(),
-            Bytecode::Ptr => self.ptr()?,
             Bytecode::Push => self.push::<i32>(pc)?,
             Bytecode::PushB => self.push::<i8>(pc)?,
             Bytecode::PushD => self.push::<i64>(pc)?,
@@ -169,14 +168,6 @@ impl Frame {
         Ok(())
     }
 
-    fn ptr(&mut self) -> Result<()> {
-        let id = self.opstack.pop::<u64>();
-        let ptr = self.heap.ptr(id as usize);
-        self.opstack.push(ptr as u64);
-
-        Ok(())
-    }
-
     fn dataptr(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
         let offset = pc.next::<u64>()?;
         let ptr = pc.getptr(offset as usize);
@@ -188,10 +179,13 @@ impl Frame {
     fn astore<T: Number>(&mut self) -> Result<()> {
         let data = self.opstack.pop::<T>();
         let offset = self.opstack.pop::<u64>();
-        let id = self.opstack.pop::<u64>();
+        let ptr = self.opstack.pop::<u64>();
         let src = data.to_le_bytes();
 
-        if !self.heap.write(id as usize, offset as usize, src.as_ref()) {
+        if !self
+            .heap
+            .write(ptr as *const u8, offset as usize, src.as_ref())
+        {
             Err("{id}: no write")?;
         }
 
@@ -200,10 +194,13 @@ impl Frame {
 
     fn aload<T: Number>(&mut self) -> Result<()> {
         let offset = self.opstack.pop::<u64>();
-        let id = self.opstack.pop::<u64>();
+        let ptr = self.opstack.pop::<u64>();
         let mut dst = T::default().to_le_bytes();
 
-        if !self.heap.read(id as usize, offset as usize, dst.as_mut()) {
+        if !self
+            .heap
+            .read(ptr as *const u8, offset as usize, dst.as_mut())
+        {
             Err("{id}: no read")?;
         }
 

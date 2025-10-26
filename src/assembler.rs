@@ -309,7 +309,6 @@ impl Assembler {
             "pop" | "pop.w" => self.assemble_operator(Bytecode::Pop),
             "pop.b" => self.assemble_operator(Bytecode::PopB),
             "pop.d" => self.assemble_operator(Bytecode::PopD),
-            "ptr" => self.assemble_operator(Bytecode::Ptr),
             "push" | "push.w" => {
                 self.assemble_operator_with_operand::<i32>(tokens, Bytecode::Push)?
             }
