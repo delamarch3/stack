@@ -16,4 +16,7 @@ main:
     push.d 0
     aload
 
+    load.d 0
+    free
+
     ret

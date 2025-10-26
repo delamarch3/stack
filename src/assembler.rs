@@ -288,6 +288,7 @@ impl Assembler {
             "div.d" => self.assemble_operator(Bytecode::DivD),
             "dup" | "dup.w" => self.assemble_operator(Bytecode::Dup),
             "dup.d" => self.assemble_operator(Bytecode::DupD),
+            "free" => self.assemble_operator(Bytecode::Free),
             "get" | "get.w" => self.assemble_operator(Bytecode::Get),
             "get.b" => self.assemble_operator(Bytecode::GetB),
             "get.d" => self.assemble_operator(Bytecode::GetD),

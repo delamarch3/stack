@@ -77,6 +77,7 @@ impl Frame {
             Bytecode::DivD => self.opstack.div::<i64>(),
             Bytecode::Dup => self.opstack.dup::<i32>(),
             Bytecode::DupD => self.opstack.dup::<i64>(),
+            Bytecode::Free => self.free()?,
             Bytecode::Get => self.get::<i32>(pc),
             Bytecode::GetB => self.get::<i8>(pc),
             Bytecode::GetD => self.get::<i64>(pc),
@@ -162,8 +163,15 @@ impl Frame {
 
     fn alloc(&mut self) -> Result<()> {
         let size = self.opstack.pop::<u64>();
-        let id = self.heap.alloc(size as usize);
-        self.opstack.push(id as u64);
+        let ptr = self.heap.alloc(size as usize);
+        self.opstack.push(ptr as u64);
+
+        Ok(())
+    }
+
+    fn free(&mut self) -> Result<()> {
+        let ptr = self.opstack.pop::<u64>();
+        self.heap.free(ptr as *const u8);
 
         Ok(())
     }
