@@ -19,7 +19,7 @@ When the interpreter starts, it bumps the `pc` to the label pointed at by the `.
 
 Each frame contains:
 
-* Operand stack - Similar in functionality to registers on a CPU, this is where values are operated upon.
+* Operand stack - Similar purpose as registers on a CPU. This is where values are operated upon.
 * Locals array - Variables can be stored and loaded when needed, using the `load` and `store` instructions.
 * Shared heap reference - Objects and buffers are allocated into the heap. Their lifetime is managed with the `alloc` and `free` instructions.
 
@@ -44,13 +44,13 @@ The full list of commands can be found in `./src/bin/sdb.rs`, inside `parse_comm
 
 `./examples/` contains some simple programs. To try them out, run:
 
-```console
+```sh
 # Assemble the program
-$ cargo r --bin stackc examples/<example-file>
+cargo r --bin stackc examples/<example-file>
 # Run the interpreter
-$ cargo r --bin stack a.out
+cargo r --bin stack a.out
 # Optional - debug the program
-$ cargo r --bin sdb a.out
+cargo r --bin sdb a.out
 ```
 
 ### Add Two Numbers
