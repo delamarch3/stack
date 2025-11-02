@@ -8,8 +8,7 @@ The `stack` instruction mnemonics are specified in `./src/assembler.rs`, inside 
 
 The operators can be grouped together by behaviour:
 
-* The operator manipulates values existing on the stack. For example, `add` will pop two values, add them, then push the result.
-* The operator pushes new values onto the stack. For example, `load 0` will push the 0th local onto the stack.
+* The operator manipulates values existing on the stack. For example, `add` will pop two values, add them, then push the result. For another example, `load 0` will push the 0th local onto the stack.
 * The operator manipulates frames on the call stack. For example, `call` and `ret` will push and pop frames respectively.
 * The operator modifies the `pc` (program counter). For example, `jmp label` will unconditionally update the `pc` to point at `label`.
 
