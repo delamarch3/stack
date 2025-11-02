@@ -333,10 +333,12 @@ impl Assembler {
         Ok(())
     }
 
+    /// Append a standalone operator onto the program.
     fn assemble_operator(&mut self, code: Bytecode) {
         self.text.push(code as u8);
     }
 
+    /// Append an operator which expacts a value inline.
     fn assemble_operator_with_operand<T>(
         &mut self,
         tokens: &mut TokenState,
@@ -411,6 +413,7 @@ impl Assembler {
         Ok(())
     }
 
+    /// Append an operator which expects a label offset inline.
     fn assemble_operator_with_label(
         &mut self,
         tokens: &mut TokenState,

@@ -1,7 +1,7 @@
 .entry main
 
 #include "examples/array_include.b"
-#include "examples/system.b"
+#include "examples/io_include.b"
 
 main:
     call array_new

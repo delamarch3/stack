@@ -1,6 +1,6 @@
 .entry main
 
-#include "examples/system.b"
+#include "examples/io_include.b"
 
 .data message .string "Hello, World!\n"
 #define MESSAGESZ { 14 }
