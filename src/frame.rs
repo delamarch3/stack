@@ -147,9 +147,7 @@ impl Frame {
     fn jmp(&mut self, pc: &mut Program<Vec<u8>>, conditions: &[Ordering]) -> Result<()> {
         let pos = pc.next::<u64>()?;
 
-        let jmp = if conditions.is_empty() {
-            true
-        } else {
+        let jmp = conditions.is_empty() || {
             let have = self.opstack.pop::<i32>();
             conditions.iter().any(|&want| want as i32 == have)
         };
