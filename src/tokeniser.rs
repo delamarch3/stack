@@ -333,27 +333,28 @@ impl TokenState {
         self.peek_n(0)
     }
 
+    pub fn next_token(&mut self) -> Token {
+        self.next().unwrap_or(Token::Eof)
+    }
+
     pub fn next_keyword(&mut self) -> Result<Keyword> {
-        match self.next() {
-            Some(Token::Keyword(keyword)) => Ok(keyword),
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => todo!(),
+        match self.next_token() {
+            Token::Keyword(keyword) => Ok(keyword),
+            token => Err(format!("unexpected token {token:?}"))?,
         }
     }
 
     pub fn next_word(&mut self) -> Result<String> {
-        match self.next() {
-            Some(Token::Word(word)) => Ok(word),
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => todo!(),
+        match self.next_token() {
+            Token::Word(word) => Ok(word),
+            token => Err(format!("unexpected token: {token:?}"))?,
         }
     }
 
     pub fn next_value(&mut self) -> Result<Value> {
-        match self.next() {
-            Some(Token::Value(value)) => Ok(value),
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => todo!(),
+        match self.next_token() {
+            Token::Value(value) => Ok(value),
+            token => Err(format!("unexpected token: {token:?}"))?,
         }
     }
 

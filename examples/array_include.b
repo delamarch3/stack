@@ -1,4 +1,4 @@
-#define ARRAY_DEFAULT_CAP { 16 }
+#define ARRAY_DEFAULT_CAP 16
 
 array_new:
     push.d 24

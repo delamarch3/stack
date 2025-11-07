@@ -226,11 +226,16 @@ impl Assembler {
             Keyword::Define => {
                 let word = tokens.next_word()?;
 
-                tokens.expect(&[Token::LBrace])?;
-                let mtokens = tokens.take_while(|token| token != &Token::RBrace);
-                tokens.expect(&[Token::RBrace])?;
-
-                self.macros.insert(word, mtokens);
+                // Multiple tokens can be defined within braces
+                // Otherwise, a single token is expected
+                if tokens.check(&[Token::LBrace]) {
+                    self.macros
+                        .insert(word, tokens.take_while(|token| token != &Token::RBrace));
+                    tokens.expect(&[Token::RBrace])?;
+                } else {
+                    let token = tokens.next_token();
+                    self.macros.insert(word, vec![token]);
+                }
             }
             Keyword::Include => {
                 // TODO: support paths relative to the file doing the include
@@ -522,7 +527,7 @@ add:
 .data input .word 9
 .data ptr .dword
 
-#define TWO { 2 }
+#define TWO 2
 
 #define TEST {
     push 1
