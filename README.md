@@ -98,11 +98,11 @@ The debugger has a few features at the moment, including but not limited to:
 * View a local variable with `v <slot idx>`
 * View the backtrace with `bt`
 
-The full list of commands can be found in `./src/bin/sdb.rs`, inside `parse_command()`.
+The full list of commands can be found in [src/bin/sdb.rs](src/bin/sdb.rs), inside `parse_command()`.
 
 ## Instruction Set
 
-The `stack` instruction mnemonics are specified in `./src/assembler.rs`, inside `Assembler::assemble_instruction()`.
+The `stack` instruction mnemonics are specified in [src/assembler.rs](src/assembler.rs), inside `Assembler::assemble_instruction()`.
 
 The operators can be grouped together by behaviour:
 
@@ -120,7 +120,7 @@ Each frame contains:
 * Locals array - Variables can be stored and loaded when needed, using the `load` and `store` instructions.
 * Shared heap reference - Objects and buffers are allocated into the heap. Their lifetime is managed with the `alloc` and `free` instructions.
 
-The frame implementation lives in `src/frame.rs`. The handling of frames on the call stack is implemented in `src/interpreter.rs`.
+The frame implementation lives in [src/frame.rs](src/frame.rs). The handling of frames on the call stack is implemented in [src/interpreter.rs](src/interpreter.rs).
 
 ## Values
 
@@ -148,4 +148,4 @@ The `.data` directive can be used to associate a label to some collection of val
     ...
 ```
 
-The label information at the end is only useful for debugging - they are not needed during program execution.
+The label information at the end is only useful for debugging - it is not needed during program execution.
