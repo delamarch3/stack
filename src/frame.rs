@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::mem;
 use std::os::fd::FromRawFd;
 use std::sync::Arc;
@@ -216,7 +216,7 @@ impl Frame {
     }
 
     fn system(&mut self) -> Result<()> {
-        // TODO
+        // Using the same system call numbers as https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master
         const EXIT: i32 = 1;
         const READ: i32 = 3;
         const WRITE: i32 = 4;
@@ -227,6 +227,32 @@ impl Frame {
         let call = self.opstack.pop::<i32>();
 
         match call {
+            EXIT => {
+                let code = self.opstack.pop::<i32>();
+                std::process::exit(code)
+            }
+            READ => {
+                let size = self.opstack.pop::<u64>() as usize;
+                let ptr = self.opstack.pop::<u64>() as *mut u8;
+                let fd = self.opstack.pop::<i32>();
+
+                if ptr.is_null() {
+                    Err("invalid ptr")?
+                }
+
+                let mut f = unsafe { File::from_raw_fd(fd) };
+                let s = unsafe { std::slice::from_raw_parts_mut(ptr, size) };
+
+                let r = match f.read(s) {
+                    Ok(n) => n as i32,
+                    Err(_) => -1,
+                };
+
+                self.opstack.push(r);
+
+                // Avoid closing the file descriptor
+                mem::forget(f);
+            }
             WRITE => {
                 let size = self.opstack.pop::<u64>() as usize;
                 let ptr = self.opstack.pop::<u64>() as *const u8;
@@ -248,6 +274,22 @@ impl Frame {
 
                 // Avoid closing the file descriptor
                 mem::forget(f);
+            }
+            OPEN => todo!(),
+            CLOSE => {
+                let fd = self.opstack.pop::<i32>();
+
+                // Dropping the file will close it
+                unsafe { File::from_raw_fd(fd) };
+            }
+            FSYNC => {
+                let fd = self.opstack.pop::<i32>();
+
+                let f = unsafe { File::from_raw_fd(fd) };
+
+                let r = if let Err(_) = f.sync_all() { -1 } else { 0 };
+
+                self.opstack.push::<i32>(r);
             }
             _ => Err(format!("invalid system call: {call}"))?,
         };
