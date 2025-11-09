@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::mem;
+use std::path::PathBuf;
 
 use crate::output::Output;
 use crate::program::Bytecode;
@@ -47,10 +48,11 @@ pub struct Assembler {
     labels: HashMap<String, Label>,
     unresolved: HashMap<u64, String>,
     macros: HashMap<String, Vec<Token>>,
+    include_paths: Vec<PathBuf>,
 }
 
 impl Assembler {
-    pub fn new() -> Self {
+    pub fn new(include_paths: Vec<PathBuf>) -> Self {
         let data = Vec::new();
         let text = Vec::new();
         let labels = HashMap::new();
@@ -63,6 +65,7 @@ impl Assembler {
             labels,
             unresolved,
             macros,
+            include_paths,
         }
     }
 
@@ -248,14 +251,27 @@ impl Assembler {
                 }
             }
             Keyword::Include => {
-                // TODO: support paths relative to the file doing the include
                 let path = match tokens.next_value()? {
                     Value::String(path) => path,
                     value => format!("unexpected value: {value:?}"),
                 };
 
+                let mut file = File::options().read(true).open(&path);
+                if file.is_err() {
+                    for include_path in &self.include_paths {
+                        file = File::options().read(true).open(include_path.join(&path));
+                        if file.is_ok() {
+                            break;
+                        }
+                    }
+                }
+
+                let mut file = match file {
+                    Ok(file) => file,
+                    Err(_) => Err(format!("could not find file in include paths: {path}"))?,
+                };
+
                 let mut contents = String::new();
-                let mut file = File::options().read(true).open(path)?;
                 file.read_to_string(&mut contents)?;
 
                 let mut mtokens =
@@ -405,7 +421,6 @@ impl Assembler {
             Some(Token::At) => {
                 tokens.next();
 
-                // TODO: refactor
                 let word = tokens.next_word()?;
                 let Some(mut mtokens) = self.macros.get(&word).cloned().map(TokenState::new) else {
                     Err(format!(
@@ -488,7 +503,7 @@ push 10
 cmp
 jmp.lt loop
 ret";
-        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
+        let have: Vec<u8> = Assembler::new(vec![]).assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             13, 0, 0, 0, 0, 0, 0, 0,
@@ -522,7 +537,7 @@ add:
    load 1
    add
    ret";
-        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
+        let have: Vec<u8> = Assembler::new(vec![]).assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             8, 0, 0, 0, 0, 0, 0, 0,
@@ -564,7 +579,7 @@ main:
     @TEST
     ret
 ";
-        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
+        let have: Vec<u8> = Assembler::new(vec![]).assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             20, 0, 0, 0, 0, 0, 0, 0,

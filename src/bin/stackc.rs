@@ -11,17 +11,37 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 fn main() -> Result<()> {
     let mut args = env::args();
     let program = args.next().unwrap();
+
     let Some(path) = args.next() else {
-        eprintln!("usage: {} path/to/file", program);
+        eprintln!("usage: {} path/to/file [-I path/to/directory ...]", program);
         process::exit(1);
     };
+
+    let mut include_paths = Vec::new();
+
+    while let Some(option) = args.next() {
+        match option.as_str() {
+            "-I" => {
+                let Some(path) = args.next() else {
+                    eprintln!("expected path with -I");
+                    process::exit(1);
+                };
+
+                include_paths.push(path.into());
+            }
+            _ => {
+                eprintln!("unknown option: {option}");
+                process::exit(1);
+            }
+        }
+    }
 
     let mut src = String::new();
     let mut file = File::open(path)?;
     file.read_to_string(&mut src)?;
 
     const OUTPUT_FILE: &str = "a.out";
-    let output = Assembler::new().assemble(&src)?;
+    let output = Assembler::new(include_paths).assemble(&src)?;
     OpenOptions::new()
         .create(true)
         .write(true)
