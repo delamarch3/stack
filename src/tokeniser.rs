@@ -303,7 +303,7 @@ impl TokenState {
     pub fn check(&mut self, tokens: &[Token]) -> bool {
         let position = self.position;
         for token in tokens {
-            if Some(token) == self.next().as_ref() {
+            if token == &self.next() {
                 continue;
             } else {
                 self.position = position;
@@ -320,10 +320,14 @@ impl TokenState {
             .ok_or(format!("unexpected token: {:?}", self.tokens[self.position]).into())
     }
 
-    pub fn next(&mut self) -> Option<Token> {
-        let token = self.tokens.get(self.position).cloned()?;
+    pub fn next(&mut self) -> Token {
+        let token = self
+            .tokens
+            .get(self.position)
+            .cloned()
+            .unwrap_or(Token::Eof);
         self.position += 1;
-        Some(token)
+        token
     }
 
     pub fn peek_n(&self, n: usize) -> Option<Token> {
@@ -331,30 +335,26 @@ impl TokenState {
         self.tokens.get(position).cloned()
     }
 
-    pub fn peek(&self) -> Option<Token> {
-        self.peek_n(0)
-    }
-
-    pub fn next_token(&mut self) -> Token {
-        self.next().unwrap_or(Token::Eof)
+    pub fn peek(&self) -> Token {
+        self.peek_n(0).unwrap_or(Token::Eof)
     }
 
     pub fn next_keyword(&mut self) -> Result<Keyword> {
-        match self.next_token() {
+        match self.next() {
             Token::Keyword(keyword) => Ok(keyword),
             token => Err(format!("unexpected token {token:?}"))?,
         }
     }
 
     pub fn next_word(&mut self) -> Result<String> {
-        match self.next_token() {
+        match self.next() {
             Token::Word(word) => Ok(word),
             token => Err(format!("unexpected token: {token:?}"))?,
         }
     }
 
     pub fn next_value(&mut self) -> Result<Value> {
-        match self.next_token() {
+        match self.next() {
             Token::Value(value) => Ok(value),
             token => Err(format!("unexpected token: {token:?}"))?,
         }
@@ -366,7 +366,8 @@ impl TokenState {
     {
         let mut tokens = Vec::new();
 
-        while let Some(token) = self.peek() {
+        loop {
+            let token = self.peek();
             if !f(&token) {
                 break;
             }

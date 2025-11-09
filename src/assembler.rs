@@ -99,8 +99,8 @@ impl Assembler {
     }
 
     fn assemble_bytecode(&mut self, tokens: &mut TokenState) -> Result<()> {
-        while let Some(token) = tokens.next() {
-            match token {
+        loop {
+            match tokens.next() {
                 Token::Word(word) => {
                     if tokens.check(&[Token::Colon]) {
                         if self
@@ -171,7 +171,7 @@ impl Assembler {
 
             while {
                 match tokens.peek() {
-                    Some(Token::Value(value)) => {
+                    Token::Value(value) => {
                         tokens.next();
                         match value {
                             Value::Number(number) if value_size == i8::SIZE => {
@@ -246,7 +246,7 @@ impl Assembler {
                         .insert(word, tokens.take_while(|token| token != &Token::RBrace));
                     tokens.expect(&[Token::RBrace])?;
                 } else {
-                    let token = tokens.next_token();
+                    let token = tokens.next();
                     self.macros.insert(word, vec![token]);
                 }
             }
@@ -381,14 +381,14 @@ impl Assembler {
         self.assemble_operator(code);
 
         match tokens.peek() {
-            Some(Token::Value(Value::Number(number))) => {
+            Token::Value(Value::Number(number)) => {
                 tokens.next();
                 let value = number
                     .parse::<T>()
                     .map_err(|_| format!("value cannot be parsed: {number}"))?;
                 self.text.extend(value.to_le_bytes());
             }
-            Some(Token::Value(Value::Char(char))) if T::SIZE == 1 => {
+            Token::Value(Value::Char(char)) if T::SIZE == 1 => {
                 if !char.is_ascii() {
                     Err(format!("non-ascii char cannot be entered with push.b"))?
                 }
@@ -396,18 +396,18 @@ impl Assembler {
                 tokens.next();
                 self.text.extend((char as u8).to_le_bytes());
             }
-            Some(Token::Value(Value::Char(char))) if T::SIZE == 4 => {
+            Token::Value(Value::Char(char)) if T::SIZE == 4 => {
                 tokens.next();
                 self.text.extend((char as u32).to_le_bytes());
             }
-            Some(Token::Value(Value::Char(char))) if T::SIZE == 8 => {
+            Token::Value(Value::Char(char)) if T::SIZE == 8 => {
                 tokens.next();
                 self.text.extend((char as u64).to_le_bytes());
             }
-            Some(Token::Word(_)) if T::SIZE == 8 => {
+            Token::Word(_) if T::SIZE == 8 => {
                 self.assemble_label(tokens)?;
             }
-            Some(Token::Keyword(Keyword::SizeOf)) if T::SIZE == 8 => {
+            Token::Keyword(Keyword::SizeOf) if T::SIZE == 8 => {
                 tokens.next();
                 let word = tokens.next_word()?;
                 let Some(label) = self.labels.get(&word) else {
@@ -418,7 +418,7 @@ impl Assembler {
                 };
                 self.text.extend((size as u64).to_le_bytes());
             }
-            Some(Token::At) => {
+            Token::At => {
                 tokens.next();
 
                 let word = tokens.next_word()?;
@@ -429,26 +429,24 @@ impl Assembler {
                 };
 
                 match mtokens.next() {
-                    Some(Token::Value(Value::Number(number))) => {
+                    Token::Value(Value::Number(number)) => {
                         mtokens.next();
                         let value = number
                             .parse::<T>()
                             .map_err(|_| format!("value cannot be parsed: {number}"))?;
                         self.text.extend(value.to_le_bytes());
                     }
-                    Some(Token::Word(_)) if T::SIZE == 8 => {
+                    Token::Word(_) if T::SIZE == 8 => {
                         self.assemble_label(&mut mtokens)?;
                     }
-                    Some(token) => Err(format!("unexpected token: {token:?}"))?,
-                    None => todo!(),
+                    token => Err(format!("unexpected token: {token:?}"))?,
                 }
 
-                if let Some(token) = mtokens.next() {
-                    Err(format!("unexpected token: {token:?}"))?
+                if mtokens.peek() != Token::Eof {
+                    Err(format!("unexpected token: {:?}", mtokens.peek()))?
                 }
             }
-            Some(token) => Err(format!("unexpected token: {token:?}"))?,
-            None => todo!(),
+            token => Err(format!("unexpected token: {token:?}"))?,
         };
 
         Ok(())
