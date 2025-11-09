@@ -4,7 +4,7 @@
 
 ## Examples
 
-`./examples/` contains some simple programs. To try them out, run:
+[examples](examples) contains some simple programs. To try them out, run:
 
 ```sh
 # Assemble the program
