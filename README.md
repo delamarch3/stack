@@ -78,11 +78,10 @@ base:
 #include "examples/io_include.b"
 
 .data message .string "Hello, World!\n"
-#define MESSAGESZ 14
 
 main:
     dataptr message
-    push.d @MESSAGESZ
+    push.d sizeof message
     call print
     ret
 ```

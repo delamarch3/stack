@@ -2,11 +2,6 @@
 
 #include "examples/io_include.b"
 
-.data message .string "Hello, World!\n"
-#define MESSAGESZ 14
-
-.data file .string "text.txt\0"
-
 main:
     push.d 64
     alloc
@@ -30,9 +25,5 @@ main:
     push 4    ; write
     system
     pop
-
-    dataptr message
-    push.d @MESSAGESZ
-    call print
 
     ret

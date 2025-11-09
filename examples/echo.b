@@ -3,7 +3,6 @@
 #include "examples/io_include.b"
 
 .data readerror .string "error: could not read\n"
-#define READERRORSZ 22
 
 #define BUFSZ 512
 
@@ -29,6 +28,6 @@ main:
 
 read_error:
     dataptr readerror
-    push.d @READERRORSZ
+    push.d sizeof readerror
     call print
     ret

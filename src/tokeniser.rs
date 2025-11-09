@@ -33,6 +33,7 @@ pub enum Keyword {
     Dword,
     Entry,
     Include,
+    SizeOf,
     String,
     Text,
     Word,
@@ -51,6 +52,7 @@ impl<'a> TryFrom<&'a str> for Keyword {
             "word" => Ok(Word),
             "dword" => Ok(Dword),
             "byte" => Ok(Byte),
+            "sizeof" => Ok(SizeOf),
             "string" => Ok(String),
             "include" => Ok(Include),
             "define" => Ok(Define),
@@ -65,7 +67,7 @@ impl Keyword {
 
         match self {
             Word | Dword | Byte | String => true,
-            Entry | Data | Text | Include | Define => false,
+            Entry | Data | Text | Include | Define | SizeOf => false,
         }
     }
 }

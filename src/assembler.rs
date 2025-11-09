@@ -10,7 +10,7 @@ use crate::{Number, Result};
 
 #[derive(PartialEq, Eq)]
 enum Section {
-    Data,
+    Data { size: usize },
     Text,
 }
 
@@ -21,8 +21,8 @@ struct Label {
 }
 
 impl Label {
-    fn data(offset: usize) -> Self {
-        let section = Section::Data;
+    fn data(size: usize, offset: usize) -> Self {
+        let section = Section::Data { size };
         Self { section, offset }
     }
 
@@ -35,7 +35,7 @@ impl Label {
         // Since the program is loaded as [entry][data][text], the data section offsets stay as is
         // while the text offsets are offset further by the data length
         (match self.section {
-            Section::Data => mem::size_of::<u64>() + self.offset,
+            Section::Data { .. } => mem::size_of::<u64>() + self.offset,
             Section::Text => mem::size_of::<u64>() + self.offset + data.len(),
         }) as u64
     }
@@ -152,17 +152,13 @@ impl Assembler {
         let name = tokens.next_word()?;
 
         let offset = self.data.len();
-        if self
-            .labels
-            .insert(name.clone(), Label::data(offset))
-            .is_some()
-        {
-            Err(format!("label is declared twice: {name}"))?;
-        }
 
+        let mut size = 0;
         while {
             tokens.expect(&[Token::Dot])?;
-            let size = match tokens.next_keyword()? {
+
+            // If it's a string, we'll set the size once we see it
+            let mut value_size = match tokens.next_keyword()? {
                 Keyword::Byte => i8::SIZE,
                 Keyword::Word => i32::SIZE,
                 Keyword::Dword => i64::SIZE,
@@ -175,34 +171,39 @@ impl Assembler {
                     Some(Token::Value(value)) => {
                         tokens.next();
                         match value {
-                            Value::Number(number) if size == i8::SIZE => {
+                            Value::Number(number) if value_size == i8::SIZE => {
                                 let value = number.parse::<i8>()?;
                                 self.data.extend(value.to_le_bytes());
                             }
-                            Value::Number(number) if size == i32::SIZE => {
+                            Value::Number(number) if value_size == i32::SIZE => {
                                 let value = number.parse::<i32>()?;
                                 self.data.extend(value.to_le_bytes());
                             }
-                            Value::Number(number) if size == i64::SIZE => {
+                            Value::Number(number) if value_size == i64::SIZE => {
                                 let value = number.parse::<i64>()?;
                                 self.data.extend(value.to_le_bytes());
                             }
-                            Value::Char(char) if size == i8::SIZE && char.is_ascii() => {
+                            Value::Char(char) if value_size == i8::SIZE && char.is_ascii() => {
                                 let value: u8 = char.try_into().unwrap();
                                 self.data.extend(value.to_le_bytes());
                             }
-                            Value::Char(char) if size == i32::SIZE => {
+                            Value::Char(char) if value_size == i32::SIZE => {
                                 let value = char as u32;
                                 self.data.extend(value.to_le_bytes());
                             }
-                            Value::String(string) if size == 0 => {
+                            Value::String(string) if value_size == 0 => {
+                                value_size = string.len();
                                 self.data.extend(string.into_bytes());
                             }
-                            value => Err(format!("value {value:?} does not match size {size}"))?,
+                            value => {
+                                Err(format!("value {value:?} does not match size {value_size}"))?
+                            }
                         }
                     }
-                    _ => self.data.extend(std::iter::repeat_n(0u8, size)),
+                    _ => self.data.extend(std::iter::repeat_n(0u8, value_size)),
                 };
+
+                size += value_size;
 
                 tokens.check(&[Token::Comma])
             } {}
@@ -215,6 +216,15 @@ impl Assembler {
                 })
                 .unwrap_or_default()
         } {}
+
+        // TODO: some tests that focus on label processing
+        if self
+            .labels
+            .insert(name.clone(), Label::data(size, offset))
+            .is_some()
+        {
+            Err(format!("label is declared twice: {name}"))?;
+        }
 
         Ok(())
     }
@@ -380,6 +390,17 @@ impl Assembler {
             }
             Some(Token::Word(_)) if T::SIZE == 8 => {
                 self.assemble_label(tokens)?;
+            }
+            Some(Token::Keyword(Keyword::SizeOf)) if T::SIZE == 8 => {
+                tokens.next();
+                let word = tokens.next_word()?;
+                let Some(label) = self.labels.get(&word) else {
+                    Err(format!("label must be defined before sizeof: {word}"))?
+                };
+                let Section::Data { size } = label.section else {
+                    Err(format!("cannot get sizeof label of an instruction: {word}",))?
+                };
+                self.text.extend((size as u64).to_le_bytes());
             }
             Some(Token::At) => {
                 tokens.next();
