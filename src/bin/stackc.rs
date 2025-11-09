@@ -41,7 +41,10 @@ fn main() -> Result<()> {
     file.read_to_string(&mut src)?;
 
     const OUTPUT_FILE: &str = "a.out";
-    let output = Assembler::new(include_paths).assemble(&src)?;
+    let output = Assembler::new()
+        .with_include_paths(include_paths)
+        .assemble(&src)?;
+
     OpenOptions::new()
         .create(true)
         .write(true)

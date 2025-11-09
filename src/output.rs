@@ -275,7 +275,7 @@ add:
    add
    ret";
 
-        let output = Assembler::new(vec![]).assemble(src)?;
+        let output = Assembler::new().assemble(src)?;
         let have = output.to_string();
         let want = "\
 .entry main
@@ -324,7 +324,7 @@ add:
    load 1
    add
    ret";
-        let want = Assembler::new(vec![]).assemble(src)?;
+        let want = Assembler::new().assemble(src)?;
         let serialised = want.clone().serialise();
         let have = Output::deserialise(serialised.as_slice())?;
 

@@ -52,12 +52,13 @@ pub struct Assembler {
 }
 
 impl Assembler {
-    pub fn new(include_paths: Vec<PathBuf>) -> Self {
+    pub fn new() -> Self {
         let data = Vec::new();
         let text = Vec::new();
         let labels = HashMap::new();
         let unresolved = HashMap::new();
         let macros = HashMap::new();
+        let include_paths = Vec::new();
 
         Self {
             data,
@@ -67,6 +68,11 @@ impl Assembler {
             macros,
             include_paths,
         }
+    }
+
+    pub fn with_include_paths(mut self, include_paths: Vec<PathBuf>) -> Self {
+        self.include_paths = include_paths;
+        self
     }
 
     pub fn assemble(mut self, src: &str) -> Result<Output> {
@@ -501,7 +507,7 @@ push 10
 cmp
 jmp.lt loop
 ret";
-        let have: Vec<u8> = Assembler::new(vec![]).assemble(src)?.into();
+        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             13, 0, 0, 0, 0, 0, 0, 0,
@@ -535,7 +541,7 @@ add:
    load 1
    add
    ret";
-        let have: Vec<u8> = Assembler::new(vec![]).assemble(src)?.into();
+        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             8, 0, 0, 0, 0, 0, 0, 0,
@@ -577,7 +583,7 @@ main:
     @TEST
     ret
 ";
-        let have: Vec<u8> = Assembler::new(vec![]).assemble(src)?.into();
+        let have: Vec<u8> = Assembler::new().assemble(src)?.into();
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             20, 0, 0, 0, 0, 0, 0, 0,
