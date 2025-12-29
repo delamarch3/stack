@@ -133,8 +133,30 @@ mod test {
         stack.add::<i32>();
         assert_eq!(stack.pop::<i32>(), 25);
 
+        stack.push(10);
+        stack.push(15);
+        stack.sub::<i32>();
+        assert_eq!(stack.pop::<i32>(), -5);
+
+        stack.push(40);
+        stack.push(20);
+        stack.div::<i32>();
+        assert_eq!(stack.pop::<i32>(), 2);
+
+        stack.push(10);
+        stack.push(20);
+        stack.mul::<i32>();
+        assert_eq!(stack.pop::<i32>(), 200);
+
+        stack.push(10);
+        stack.push(20);
+        stack.cmp::<i32>();
+        assert_eq!(stack.pop::<i32>(), -1);
+
         stack.push::<i32>(0x40000000);
         stack.dup::<i32>();
         assert_eq!(stack.pop::<i64>(), 0x4000000040000000);
+
+        assert_eq!(stack.peek::<i32>(), None);
     }
 }
