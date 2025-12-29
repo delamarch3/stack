@@ -1,0 +1,40 @@
+add
+----
+.entry main
+
+main:
+    push 1
+    push 2
+    add
+    push 1
+    ret
+----
+ok
+stack [3, 1]
+
+dup
+----
+.entry main
+
+main:
+    dup
+    ret
+----
+error
+
+print
+----
+.entry main
+
+.data message .str "Hello, World!"
+
+main:
+    dataptr message
+    push.d sizeof message
+    call print
+    ret
+----
+ok
+stdout
+Hello, World!
+----
