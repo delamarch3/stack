@@ -12,12 +12,12 @@ main:
 ok
 stack [3, 1]
 
-dup
+panic
 ----
 .entry main
 
 main:
-    dup
+    panic
     ret
 ----
 error
@@ -26,7 +26,10 @@ print
 ----
 .entry main
 
-.data message .str "Hello, World!"
+.data message .string "Hello, World!"
+
+print:
+    ret
 
 main:
     dataptr message

@@ -1,15 +1,34 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::Number;
+
+#[repr(align(8))]
+struct Stack<const T: usize>([u8; T]);
+
+impl<const T: usize> Deref for Stack<T> {
+    type Target = [u8; T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const T: usize> DerefMut for Stack<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 const STACK_SIZE: usize = 512;
 const SLOT_SIZE: usize = std::mem::size_of::<i32>();
 pub struct OperandStack {
-    stack: Box<[u8; STACK_SIZE]>,
+    stack: Box<Stack<STACK_SIZE>>,
     idx: usize,
 }
 
 impl Default for OperandStack {
     fn default() -> Self {
-        let stack = Box::new([0; STACK_SIZE]);
+        let stack = Box::new(Stack([0; STACK_SIZE]));
         let idx = 0;
         Self { stack, idx }
     }

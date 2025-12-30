@@ -2,12 +2,110 @@ use std::{
     fs::File,
     io::Read,
     iter::Peekable,
+    path::PathBuf,
     str::{Chars, Lines},
 };
+
+use stack::{assembler::Assembler, interpreter::Interpreter};
 
 const SEPARATOR: &str = "----";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+#[derive(Debug)]
+pub enum AssertionErrorKind {
+    Status { want: bool, have: bool },
+    StackU32 { want: Vec<u32>, have: Vec<u32> },
+    Stdout { want: String, have: String },
+}
+
+#[derive(Debug)]
+pub struct AssertionError {
+    filename: &'static str,
+    testname: String,
+    kind: AssertionErrorKind,
+}
+
+pub struct TestRunner {
+    filename: &'static str,
+    testcases: Vec<TestCase>,
+    include_paths: Vec<PathBuf>,
+    diagnostics: Vec<AssertionError>,
+}
+
+impl TestRunner {
+    pub fn new(
+        filename: &'static str,
+        testcases: Vec<TestCase>,
+        include_paths: Vec<PathBuf>,
+    ) -> Self {
+        Self {
+            filename,
+            testcases,
+            include_paths,
+            diagnostics: Vec::new(),
+        }
+    }
+
+    pub fn run(mut self) -> Result<Vec<AssertionError>> {
+        for testcase in 0..self.testcases.len() {
+            self.run_one(testcase)?
+        }
+
+        Ok(self.diagnostics)
+    }
+
+    fn run_one(&mut self, i: usize) -> Result<()> {
+        let testcase = &self.testcases[i];
+
+        let output = Assembler::new()
+            .with_include_paths(self.include_paths.clone())
+            .assemble(&testcase.src)?;
+
+        // TODO: this could panic, which we should interpret as an error (or new panic status?)
+        let mut interpreter = Interpreter::new(&output)?;
+
+        let ok = interpreter.run().is_ok();
+
+        let stack = interpreter.frames().last().unwrap().opstack.as_slice();
+
+        // Could either update stackc to accept a program via stdin OR update interpreter to
+        // override stdout and stdin
+        // let stdout = todo!();
+
+        if testcase.ok != ok {
+            self.diagnostics.push(AssertionError {
+                filename: self.filename,
+                testname: testcase.name.clone(),
+                kind: AssertionErrorKind::Status {
+                    want: testcase.ok,
+                    have: ok,
+                },
+            });
+        }
+
+        if let Some(testcase_stack) = &testcase.stack {
+            let want = testcase_stack.as_slice();
+
+            let have = unsafe {
+                std::slice::from_raw_parts(stack.as_ptr() as *const u32, stack.len() / 4)
+            };
+
+            if want != have {
+                self.diagnostics.push(AssertionError {
+                    filename: self.filename,
+                    testname: testcase.name.clone(),
+                    kind: AssertionErrorKind::StackU32 {
+                        want: want.into(),
+                        have: have.into(),
+                    },
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct TestCase {
@@ -16,11 +114,11 @@ pub struct TestCase {
     ok: bool,
     /// The length of the vector will be used to check the position of the stack pointer, so we
     /// need to be able to distinguish between stack not provided and empty stack
-    stack: Option<Vec<u64>>,
+    stack: Option<Vec<u32>>,
     stdout: Option<String>,
 }
 
-pub fn parse_file(file: &str) -> Result<Vec<TestCase>> {
+pub fn parse_test_file(file: &str) -> Result<Vec<TestCase>> {
     let mut contents = String::new();
     File::open(file)?.read_to_string(&mut contents)?;
 
@@ -88,7 +186,7 @@ fn read_until_separator(lines: &mut Peekable<Lines<'_>>) -> String {
     s
 }
 
-fn check_stack(lines: &mut Peekable<Lines<'_>>) -> Result<Option<Vec<u64>>> {
+fn check_stack(lines: &mut Peekable<Lines<'_>>) -> Result<Option<Vec<u32>>> {
     if !check_line(lines)
         .map(|s| s.starts_with("stack"))
         .unwrap_or_default()
@@ -111,7 +209,7 @@ fn check_stack(lines: &mut Peekable<Lines<'_>>) -> Result<Option<Vec<u64>>> {
             break;
         }
 
-        values.push(s.parse::<u64>()?);
+        values.push(s.parse::<u32>()?);
 
         if !check_char(&mut chars, ',') {
             break;

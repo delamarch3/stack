@@ -156,7 +156,11 @@ impl Interpreter {
                 self.frames[last].opstack.push::<i64>(current.opstack.pop());
                 Some(Return::Other)
             }
-            FrameResult::Panic(_) => Err("panic")?,
+            FrameResult::Panic(_) => {
+                // Push the frame back on so we can inspect it
+                self.frames.push(current);
+                Err("panic")?
+            }
         };
 
         Ok(ret)
