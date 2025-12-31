@@ -88,7 +88,12 @@ impl TestRunner {
             let want = testcase_stack.as_slice();
 
             let have = unsafe {
-                std::slice::from_raw_parts(stack.as_ptr() as *const u32, stack.len() / 4)
+                let (prefix, have, suffix) = stack.align_to::<u32>();
+
+                // stack is aligned to 8 bytes, so these should always be empty
+                assert!(prefix.is_empty());
+                assert!(suffix.is_empty());
+                have
             };
 
             if want != have {
