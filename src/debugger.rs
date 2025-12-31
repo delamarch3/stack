@@ -27,7 +27,9 @@ pub struct Debugger {
 
 impl Debugger {
     pub fn new(output: Output) -> Result<Self> {
-        let interpreter = Interpreter::new(&output)?;
+        // Use the system stdout and stderr
+        let (stdout, stderr) = (None, None);
+        let interpreter = Interpreter::new(&output, stdout, stderr)?;
         let state = State::default();
         let breakpoints = HashSet::new();
 

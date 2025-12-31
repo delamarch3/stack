@@ -1,15 +1,15 @@
 use std::cmp::Ordering;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::mem;
 use std::os::fd::FromRawFd;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::heap::Heap;
 use crate::locals::Locals;
 use crate::program::{Bytecode, Program};
 use crate::stack::OperandStack;
-use crate::{Number, Result};
+use crate::{Number, Result, SharedWriter};
 
 pub enum FrameResult {
     Call(Frame),
@@ -29,6 +29,8 @@ pub struct Frame {
     pub entry: u64,
     /// The position of the first instruction after the call
     pub ret: u64,
+    stdout: Option<SharedWriter>,
+    stderr: Option<SharedWriter>,
 }
 
 impl Frame {
@@ -38,6 +40,8 @@ impl Frame {
         heap: Arc<Heap>,
         entry: u64,
         ret: u64,
+        stdout: Option<SharedWriter>,
+        stderr: Option<SharedWriter>,
     ) -> Self {
         Self {
             opstack,
@@ -45,6 +49,8 @@ impl Frame {
             heap,
             entry,
             ret,
+            stdout,
+            stderr,
         }
     }
 
@@ -224,6 +230,9 @@ impl Frame {
         const CLOSE: i32 = 6;
         const FSYNC: i32 = 95;
 
+        const STDOUT: i32 = 1;
+        const _STDERR: i32 = 2;
+
         let call = self.opstack.pop::<i32>();
 
         match call {
@@ -240,18 +249,17 @@ impl Frame {
                     Err("invalid ptr")?
                 }
 
-                let mut f = unsafe { File::from_raw_fd(fd) };
-                let s = unsafe { std::slice::from_raw_parts_mut(ptr, size) };
+                let dst = unsafe { std::slice::from_raw_parts_mut(ptr, size) };
+                let mut src = unsafe { File::from_raw_fd(fd) };
+                let result = src.read(dst);
+                mem::forget(src); // Avoid closing the file descriptor
 
-                let r = match f.read(s) {
+                let n = match result {
                     Ok(n) => n as i32,
                     Err(_) => -1,
                 };
 
-                self.opstack.push(r);
-
-                // Avoid closing the file descriptor
-                mem::forget(f);
+                self.opstack.push(n);
             }
             WRITE => {
                 let size = self.opstack.pop::<u64>() as usize;
@@ -262,18 +270,26 @@ impl Frame {
                     Err("invalid ptr")?
                 }
 
-                let mut f = unsafe { File::from_raw_fd(fd) };
-                let s = unsafe { std::slice::from_raw_parts(ptr, size) };
+                let src = unsafe { std::slice::from_raw_parts(ptr, size) };
 
-                let r = match f.write(s) {
+                let result: io::Result<usize>;
+                // TODO: try using let chains after switching to rust 2024 edition
+                if fd == STDOUT && self.stdout.is_some() {
+                    let stdout = self.stdout.as_ref().unwrap();
+                    let mut stdout = stdout.lock().unwrap();
+                    result = stdout.write(src);
+                } else {
+                    let mut dst = unsafe { File::from_raw_fd(fd) };
+                    result = dst.write(src);
+                    mem::forget(dst); // Avoid closing the file descriptor
+                }
+
+                let n = match result {
                     Ok(n) => n as i32,
                     Err(_) => -1,
                 };
 
-                self.opstack.push(r);
-
-                // Avoid closing the file descriptor
-                mem::forget(f);
+                self.opstack.push(n);
             }
             OPEN => todo!(),
             CLOSE => {
@@ -306,7 +322,10 @@ impl Frame {
         let ret = pc.position();
         let opstack = OperandStack::default();
         let heap = Arc::clone(&self.heap);
-        let frame = Frame::new(locals, opstack, heap, entry, ret);
+        let stdout = self.stdout.as_ref().map(Arc::clone);
+        let stderr = self.stderr.as_ref().map(Arc::clone);
+
+        let frame = Frame::new(locals, opstack, heap, entry, ret, stdout, stderr);
 
         Ok(FrameResult::Call(frame))
     }

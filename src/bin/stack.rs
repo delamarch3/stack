@@ -18,7 +18,9 @@ fn main() -> Result<()> {
     let file = File::open(path)?;
     let output = Output::deserialise(file)?;
 
-    let mut interpreter = Interpreter::new(&output)?;
+    // Use the system stdout and stderr
+    let (stdout, stderr) = (None, None);
+    let mut interpreter = Interpreter::new(&output, stdout, stderr)?;
     if let Err(err) = interpreter.run() {
         eprintln!("{err}");
     };

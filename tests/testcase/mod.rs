@@ -4,9 +4,10 @@ use std::{
     iter::Peekable,
     path::PathBuf,
     str::{Chars, Lines},
+    sync::{Arc, Mutex},
 };
 
-use stack::{assembler::Assembler, interpreter::Interpreter};
+use stack::{assembler::Assembler, interpreter::Interpreter, SharedWriter};
 
 const SEPARATOR: &str = "----";
 
@@ -62,16 +63,15 @@ impl TestRunner {
             .with_include_paths(self.include_paths.clone())
             .assemble(&testcase.src)?;
 
+        let stdout = Arc::new(Mutex::new(Vec::new()));
+        let stderr = None;
         // TODO: this could panic, which we should interpret as an error (or new panic status?)
-        let mut interpreter = Interpreter::new(&output)?;
+        let mut interpreter =
+            Interpreter::new(&output, Some(Arc::clone(&stdout) as SharedWriter), stderr)?;
 
         let ok = interpreter.run().is_ok();
 
         let stack = interpreter.frames().last().unwrap().opstack.as_slice();
-
-        // Could either update stackc to accept a program via stdin OR update interpreter to
-        // override stdout and stdin
-        // let stdout = todo!();
 
         if testcase.ok != ok {
             self.diagnostics.push(AssertionError {
@@ -84,8 +84,8 @@ impl TestRunner {
             });
         }
 
-        if let Some(testcase_stack) = &testcase.stack {
-            let want = testcase_stack.as_slice();
+        if let Some(want) = &testcase.stack {
+            let want = want.as_slice();
 
             let have = unsafe {
                 let (prefix, have, suffix) = stack.align_to::<u32>();
@@ -104,6 +104,20 @@ impl TestRunner {
                         want: want.into(),
                         have: have.into(),
                     },
+                });
+            }
+        }
+
+        if let Some(want) = testcase.stdout.clone() {
+            // TODO: fail testcase if stdout is not valid utf8
+            let stdout = stdout.lock().unwrap();
+            let have = std::str::from_utf8(&stdout)?.to_string();
+
+            if want != have {
+                self.diagnostics.push(AssertionError {
+                    filename: self.filename,
+                    testname: testcase.name.clone(),
+                    kind: AssertionErrorKind::Stdout { want, have },
                 });
             }
         }

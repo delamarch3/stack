@@ -7,11 +7,11 @@ use crate::locals::Locals;
 use crate::output::Output;
 use crate::program::Program;
 use crate::stack::OperandStack;
-use crate::Result;
+use crate::{Result, SharedWriter};
 
 const MAIN_RETURN: u64 = 0;
 
-pub enum Return {
+pub enum ReturnFrom {
     Main,
     Other,
 }
@@ -21,10 +21,16 @@ pub struct Interpreter {
     pc: Program<Vec<u8>>,
     frames: Vec<Frame>,
     heap: Arc<Heap>,
+    stdout: Option<SharedWriter>,
+    stderr: Option<SharedWriter>,
 }
 
 impl Interpreter {
-    pub fn new(output: &Output) -> Result<Self> {
+    pub fn new(
+        output: &Output,
+        stdout: Option<SharedWriter>,
+        stderr: Option<SharedWriter>,
+    ) -> Result<Self> {
         let mut pc = Program::new(output.into());
 
         let entry = pc.next::<u64>()?;
@@ -38,6 +44,8 @@ impl Interpreter {
             Arc::clone(&heap),
             entry,
             MAIN_RETURN,
+            stdout.as_ref().map(Arc::clone),
+            stderr.as_ref().map(Arc::clone),
         );
         let frames = vec![main];
 
@@ -46,6 +54,8 @@ impl Interpreter {
             pc,
             frames,
             heap,
+            stdout,
+            stderr,
         })
     }
 
@@ -59,6 +69,8 @@ impl Interpreter {
             Arc::clone(&self.heap),
             self.entry,
             MAIN_RETURN,
+            self.stdout.as_ref().map(Arc::clone),
+            self.stderr.as_ref().map(Arc::clone),
         );
 
         self.frames.push(main)
@@ -76,7 +88,7 @@ impl Interpreter {
         while let Some(mut current) = self.frames.pop() {
             let fr = current.run(&mut self.pc)?;
             match self.handle_frame_result(fr, current)? {
-                Some(Return::Main) => break,
+                Some(ReturnFrom::Main) => break,
                 _ => {}
             }
         }
@@ -107,7 +119,7 @@ impl Interpreter {
 
         if let Some(fr) = current.step(&mut self.pc)? {
             match self.handle_frame_result(fr, current)? {
-                Some(Return::Main) => return Ok(None),
+                Some(ReturnFrom::Main) => return Ok(None),
                 _ => {}
             }
         } else {
@@ -121,7 +133,7 @@ impl Interpreter {
         &mut self,
         fr: FrameResult,
         mut current: Frame,
-    ) -> Result<Option<Return>> {
+    ) -> Result<Option<ReturnFrom>> {
         let last = self.frames.len().saturating_sub(1);
         let main = self.entry == current.entry;
 
@@ -140,21 +152,21 @@ impl Interpreter {
                 // Make it appear as if the pc is still pointing to the return instruction
                 self.pc.set_position(position);
                 self.frames.push(current);
-                Some(Return::Main)
+                Some(ReturnFrom::Main)
             }
             FrameResult::Ret(_) => {
                 self.pc.set_position(current.ret);
-                Some(Return::Other)
+                Some(ReturnFrom::Other)
             }
             FrameResult::RetW(_) => {
                 self.pc.set_position(current.ret);
                 self.frames[last].opstack.push::<i32>(current.opstack.pop());
-                Some(Return::Other)
+                Some(ReturnFrom::Other)
             }
             FrameResult::RetD(_) => {
                 self.pc.set_position(current.ret);
                 self.frames[last].opstack.push::<i64>(current.opstack.pop());
-                Some(Return::Other)
+                Some(ReturnFrom::Other)
             }
             FrameResult::Panic(_) => {
                 // Push the frame back on so we can inspect it

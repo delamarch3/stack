@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 pub mod assembler;
 pub mod debugger;
 mod frame;
@@ -10,6 +12,8 @@ mod stack;
 mod tokeniser;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+pub type SharedWriter = Arc<Mutex<dyn std::io::Write>>;
 
 #[allow(dead_code)]
 pub trait Number:
