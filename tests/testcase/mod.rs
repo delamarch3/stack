@@ -64,17 +64,18 @@ impl TestRunner {
         let mut interpreter =
             Interpreter::new(&output, Some(Arc::clone(&stdout) as SharedWriter), stderr)?;
 
-        let ok = interpreter.run().is_ok();
+        let status = if interpreter.run().is_ok() {
+            Status::Ok
+        } else {
+            Status::Error
+        };
 
         let stack = interpreter.frames().last().unwrap().opstack.as_slice();
 
-        if testcase.ok != ok {
-            let want = if testcase.ok { "success" } else { "error" };
-            let have = if ok { "success" } else { "error" };
-
+        if testcase.status != status {
             self.add_error(
                 &testcase,
-                format!("status mismatch: want {want}, have {have}"),
+                format!("status mismatch: want {}, have {}", testcase.status, status),
             );
         }
 
@@ -123,11 +124,31 @@ impl TestRunner {
     }
 }
 
+#[derive(Debug, PartialEq, Default)]
+pub enum Status {
+    #[default]
+    Ok,
+    Error,
+}
+
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Ok => "ok",
+                Self::Error => "error",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct TestCase {
     name: String,
     src: String,
-    ok: bool,
+    status: Status,
     /// The length of the vector will be used to check the position of the stack pointer, so we
     /// need to be able to distinguish between stack not provided and empty stack
     stack: Option<Vec<u32>>,
@@ -151,7 +172,7 @@ pub fn parse_test_file(file: &str) -> Result<Vec<TestCase>> {
         expect_separator(&mut lines)?;
         testcase.src = read_until_separator(&mut lines);
         expect_separator(&mut lines)?;
-        testcase.ok = expect_status(&mut lines)?;
+        testcase.status = expect_status(&mut lines)?;
         testcase.stack = check_stack(&mut lines)?;
         testcase.stdout = check_stdout(&mut lines)?;
 
@@ -177,14 +198,14 @@ fn expect_separator(lines: &mut Peekable<Lines<'_>>) -> Result<()> {
     Ok(())
 }
 
-fn expect_status(lines: &mut Peekable<Lines<'_>>) -> Result<bool> {
-    let ok = match expect_line(lines)? {
-        "ok" => true,
-        "error" => false,
+fn expect_status(lines: &mut Peekable<Lines<'_>>) -> Result<Status> {
+    let status = match expect_line(lines)? {
+        "ok" => Status::Ok,
+        "error" => Status::Error,
         status => Err(format!("invalid status: {status}"))?,
     };
 
-    Ok(ok)
+    Ok(status)
 }
 
 fn read_until_separator(lines: &mut Peekable<Lines<'_>>) -> String {

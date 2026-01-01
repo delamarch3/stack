@@ -43,6 +43,7 @@ main:
     dataptr message
     push.d sizeof message
     call print
+    push 1
     ret
 ----
 ok
