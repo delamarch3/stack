@@ -1,52 +1,142 @@
-add
+#################
+# u8 operations #
+#################
+
+add-u8
+----
+.entry main
+
+main:
+    push.b 2
+    push.b 2
+    add.b
+    ret
+----
+ok
+stack [4]
+
+sub-u8
+----
+.entry main
+
+main:
+    push.b 1
+    push.b 2
+    sub.b
+    ret
+----
+ok
+stack [255]
+
+##################
+# i32 operations #
+##################
+
+add-i32
+----
+.entry main
+
+main:
+    push 2
+    push 2
+    add
+    ret
+----
+ok
+stack [4]
+
+sub-i32
 ----
 .entry main
 
 main:
     push 1
     push 2
-    add
-    push 1
+    sub
     ret
 ----
 ok
-stack [3, 1]
+stack [-1]
 
-panic
+mul-i32
 ----
 .entry main
 
 main:
-    panic
-    ret
-----
-error
-
-print
-----
-.entry main
-
-.data message .string "Hello, World!\n"
-
-#define STDOUT 1
-#define WRITE 4
-
-print:
-    push @STDOUT
-    load.d 0
-    load.d 2
-    push @WRITE
-    system
-    ret
-
-main:
-    dataptr message
-    push.d sizeof message
-    call print
-    push 1
+    push 2
+    push 4
+    mul
     ret
 ----
 ok
-stdout
-Hello, World!
+stack [8]
+
+div-i32
 ----
+.entry main
+
+main:
+    push 8
+    push 2
+    div
+    ret
+----
+ok
+stack [4]
+
+##################
+# i64 operations #
+##################
+# TODO: ability to specify size of stack item
+
+add-i64
+----
+.entry main
+
+main:
+    push.d 2
+    push.d 2
+    add.d
+    ret
+----
+ok
+stack [4, 0]
+
+sub-i64
+----
+.entry main
+
+main:
+    push.d 1
+    push.d 2
+    sub.d
+    ret
+----
+ok
+stack [-1, -1]
+
+mul-i64
+----
+.entry main
+
+main:
+    push.d 2
+    push.d 4
+    mul.d
+    ret
+----
+ok
+stack [8, 0]
+
+div-i64
+----
+.entry main
+
+main:
+    push.d 8
+    push.d 2
+    div.d
+    ret
+----
+ok
+stack [4, 0]

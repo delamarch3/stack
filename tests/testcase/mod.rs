@@ -83,7 +83,7 @@ impl TestRunner {
             let want = want.as_slice();
 
             let have = unsafe {
-                let (prefix, have, suffix) = stack.align_to::<u32>();
+                let (prefix, have, suffix) = stack.align_to::<i32>();
 
                 // stack is aligned to 8 bytes, so these should always be empty
                 assert!(prefix.is_empty());
@@ -151,7 +151,7 @@ pub struct TestCase {
     status: Status,
     /// The length of the vector will be used to check the position of the stack pointer, so we
     /// need to be able to distinguish between stack not provided and empty stack
-    stack: Option<Vec<u32>>,
+    stack: Option<Vec<i32>>,
     stdout: Option<String>,
 }
 
@@ -223,7 +223,7 @@ fn read_until_separator(lines: &mut Peekable<Lines<'_>>) -> String {
     s
 }
 
-fn check_stack(lines: &mut Peekable<Lines<'_>>) -> Result<Option<Vec<u32>>> {
+fn check_stack(lines: &mut Peekable<Lines<'_>>) -> Result<Option<Vec<i32>>> {
     if !check_line(lines)
         .map(|s| s.starts_with("stack"))
         .unwrap_or_default()
@@ -241,12 +241,12 @@ fn check_stack(lines: &mut Peekable<Lines<'_>>) -> Result<Option<Vec<u32>>> {
     loop {
         skip_whitespace(&mut chars);
 
-        let s = take_while(&mut chars, char::is_numeric);
+        let s = take_while(&mut chars, |c| ['-', '+'].contains(&c) || c.is_numeric());
         if s.is_empty() {
             break;
         }
 
-        values.push(s.parse::<u32>()?);
+        values.push(s.parse::<i32>()?);
 
         if !check_char(&mut chars, ',') {
             break;
