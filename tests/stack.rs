@@ -8,12 +8,12 @@ fn it_works() -> Result<(), Box<dyn std::error::Error>> {
 
     let testcases = parse_test_file(FILENAME)?;
 
-    let runner = TestRunner::new(FILENAME, testcases, vec![]);
+    let runner = TestRunner::new(FILENAME, vec![]);
 
-    let errors = runner.run()?;
+    let errors = runner.run(testcases)?;
 
     if !errors.is_empty() {
-        dbg!(errors);
+        errors.iter().for_each(|e| eprintln!("{e}"));
         panic!("tests failed");
     }
 

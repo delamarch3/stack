@@ -14,51 +14,46 @@ const SEPARATOR: &str = "----";
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug)]
-pub enum AssertionErrorKind {
-    Status { want: bool, have: bool },
-    StackU32 { want: Vec<u32>, have: Vec<u32> },
-    Stdout { want: String, have: String },
-}
-
-#[derive(Debug)]
 pub struct AssertionError {
     filename: &'static str,
     testname: String,
-    kind: AssertionErrorKind,
+    message: String,
+}
+
+impl std::fmt::Display for AssertionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}: assertion error: {}",
+            self.filename, self.testname, self.message
+        )
+    }
 }
 
 pub struct TestRunner {
     filename: &'static str,
-    testcases: Vec<TestCase>,
     include_paths: Vec<PathBuf>,
-    diagnostics: Vec<AssertionError>,
+    errors: Vec<AssertionError>,
 }
 
 impl TestRunner {
-    pub fn new(
-        filename: &'static str,
-        testcases: Vec<TestCase>,
-        include_paths: Vec<PathBuf>,
-    ) -> Self {
+    pub fn new(filename: &'static str, include_paths: Vec<PathBuf>) -> Self {
         Self {
             filename,
-            testcases,
             include_paths,
-            diagnostics: Vec::new(),
+            errors: Vec::new(),
         }
     }
 
-    pub fn run(mut self) -> Result<Vec<AssertionError>> {
-        for testcase in 0..self.testcases.len() {
+    pub fn run(mut self, testcases: Vec<TestCase>) -> Result<Vec<AssertionError>> {
+        for testcase in testcases {
             self.run_one(testcase)?
         }
 
-        Ok(self.diagnostics)
+        Ok(self.errors)
     }
 
-    fn run_one(&mut self, i: usize) -> Result<()> {
-        let testcase = &self.testcases[i];
-
+    fn run_one(&mut self, testcase: TestCase) -> Result<()> {
         let output = Assembler::new()
             .with_include_paths(self.include_paths.clone())
             .assemble(&testcase.src)?;
@@ -74,14 +69,13 @@ impl TestRunner {
         let stack = interpreter.frames().last().unwrap().opstack.as_slice();
 
         if testcase.ok != ok {
-            self.diagnostics.push(AssertionError {
-                filename: self.filename,
-                testname: testcase.name.clone(),
-                kind: AssertionErrorKind::Status {
-                    want: testcase.ok,
-                    have: ok,
-                },
-            });
+            let want = if testcase.ok { "success" } else { "error" };
+            let have = if ok { "success" } else { "error" };
+
+            self.add_error(
+                &testcase,
+                format!("status mismatch: want {want}, have {have}"),
+            );
         }
 
         if let Some(want) = &testcase.stack {
@@ -97,14 +91,10 @@ impl TestRunner {
             };
 
             if want != have {
-                self.diagnostics.push(AssertionError {
-                    filename: self.filename,
-                    testname: testcase.name.clone(),
-                    kind: AssertionErrorKind::StackU32 {
-                        want: want.into(),
-                        have: have.into(),
-                    },
-                });
+                self.add_error(
+                    &testcase,
+                    format!("stack mismatch: want {want:?}, have {have:?}"),
+                );
             }
         }
 
@@ -114,15 +104,22 @@ impl TestRunner {
             let have = std::str::from_utf8(&stdout)?.to_string();
 
             if want != have {
-                self.diagnostics.push(AssertionError {
-                    filename: self.filename,
-                    testname: testcase.name.clone(),
-                    kind: AssertionErrorKind::Stdout { want, have },
-                });
+                self.add_error(
+                    &testcase,
+                    format!("stdout mismatch: want {want:?}, have {have:?}"),
+                );
             }
         }
 
         Ok(())
+    }
+
+    fn add_error(&mut self, testcase: &TestCase, message: String) {
+        self.errors.push(AssertionError {
+            filename: self.filename,
+            testname: testcase.name.clone(),
+            message,
+        });
     }
 }
 
