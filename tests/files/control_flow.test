@@ -1,0 +1,18 @@
+call
+----
+.entry main
+
+main:
+    push 1
+    push 2
+    call add
+    ret
+
+add:
+    load 0
+    load 1
+    add
+    ret.w
+----
+ok
+stack [3]
