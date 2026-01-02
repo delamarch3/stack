@@ -47,3 +47,42 @@ l0:
 ----
 ok
 stack [720]
+
+while
+----
+.entry main
+
+main:
+    push 6
+    call factorial
+    ret
+
+; factorial(x):
+;   result = 1;
+;   while (x > 0):
+;     result = result * x;
+;     x = x - 1;
+;   return result;
+factorial:
+    push 1
+    store 1
+l0:
+    load 0
+    push 0
+    cmp
+    jmp.le l1
+    load 0
+    load 1
+    mul
+    store 1
+    load 0
+    push 1
+    sub
+    store 0
+    jmp l0
+l1:
+    load 1
+    ret.w
+----
+ok
+stack [720]
