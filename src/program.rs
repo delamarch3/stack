@@ -153,7 +153,11 @@ impl<T: AsRef<[u8]>> Program<T> {
 
     pub fn next_op(&mut self) -> Result<Bytecode> {
         let op = self.next::<u8>()?;
-        assert!(op <= Bytecode::RetD as u8);
+        assert!(
+            op <= Bytecode::RetD as u8,
+            "unexpected opcode: {op} at {position}",
+            position = self.counter.position()
+        );
         let op = unsafe { std::mem::transmute::<u8, Bytecode>(op) };
         Ok(op)
     }
