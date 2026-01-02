@@ -16,3 +16,34 @@ add:
 ----
 ok
 stack [3]
+
+recursive-call
+----
+.entry main
+
+main:
+    push 6
+    call factorial
+    ret
+
+; factorial(x):
+;   if x == 0 return 1;
+;   return x * factorial(x - 1)
+factorial:
+    load 0
+    push 0
+    cmp
+    jmp.ne l0
+    push 1
+    ret.w
+l0:
+    load 0
+    push 1
+    sub
+    call factorial
+    load 0
+    mul
+    ret.w
+----
+ok
+stack [720]
