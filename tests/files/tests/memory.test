@@ -7,7 +7,6 @@ copy-from-data
 .data message .string "Hello, World!\n"
 
 ; char* message = "Hello, World!"
-;
 ; main():
 ;   char* copy = alloc(len(message))
 ;   size_t i = 0;
@@ -49,6 +48,72 @@ l1:
 ----
 ok
 stack [14]
+stdout
+Hello, World!
+----
+
+copy-from-allocation
+----
+.entry main
+
+#include "include.b"
+
+#define bufsz 16
+#define msgsz 14
+
+; main():
+;   char* a = alloc(bufsz);
+;   a[0] = 6278066737626506568;
+;   a[1] = 11138535027311;
+;   char* b = alloc(msgsz);
+;   while (i < msgsz):
+;     t = a[i];
+;     b[i] = t;
+;     i = i + 1;
+;   print(b);
+;  return;
+main:
+    push.d @bufsz
+    alloc
+    store.d 0
+    load.d 0
+    push.d 0
+    push.d 6278066737626506568
+    astore.d
+    load.d 0
+    push.d 8
+    push.d 11138535027311
+    astore.d
+    push.d @msgsz
+    alloc
+    store.d 2
+    push.d 0
+    store.d 4
+l0:
+    load.d 4
+    push.d @msgsz
+    cmp.d
+    jmp.ge l1
+    load.d 0
+    load.d 4
+    aload.b
+    store.b 6
+    load.d 2
+    load.d 4
+    load.b 6
+    astore.b
+    load.d 4
+    push.d 1
+    add.d
+    store.d 4
+    jmp l0
+l1:
+    load.d 2
+    push.d @msgsz
+    call print
+    ret
+----
+ok
 stdout
 Hello, World!
 ----
