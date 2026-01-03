@@ -54,9 +54,16 @@ impl TestRunner {
     }
 
     fn run_one(&mut self, testcase: TestCase) -> Result<()> {
-        let output = Assembler::new()
+        let output = match Assembler::new()
             .with_include_paths(self.include_paths.clone())
-            .assemble(&testcase.src)?;
+            .assemble(&testcase.src)
+        {
+            Ok(o) => o,
+            Err(e) => {
+                self.add_error(&testcase, format!("could not assemble bytecode: {e}"));
+                return Ok(());
+            }
+        };
 
         let stdout = Arc::new(Mutex::new(Vec::new()));
         let stderr = None;
@@ -100,9 +107,11 @@ impl TestRunner {
         }
 
         if let Some(want) = testcase.stdout.clone() {
-            // TODO: fail testcase if stdout is not valid utf8
             let stdout = stdout.lock().unwrap();
-            let have = std::str::from_utf8(&stdout)?.to_string();
+            let Ok(have) = std::str::from_utf8(&stdout).map(str::to_string) else {
+                self.add_error(&testcase, format!("stdout is not valid utf8"));
+                return Ok(());
+            };
 
             if want != have {
                 self.add_error(
