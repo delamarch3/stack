@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem;
 use std::os::fd::FromRawFd;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::heap::Heap;
 use crate::locals::Locals;
@@ -145,7 +145,7 @@ impl Frame {
 
     fn get<T: Number>(&mut self, pc: &mut Program<Vec<u8>>) {
         let offset = self.opstack.pop::<u64>();
-        let ptr = self.opstack.pop::<u64>();
+        let ptr = self.opstack.pop::<u64>(); // offset within the output file, not an actual pointer
         let value = pc.get::<T>((ptr + offset) as usize);
         self.opstack.push(value);
     }
@@ -222,7 +222,8 @@ impl Frame {
     }
 
     fn system(&mut self) -> Result<()> {
-        // Using the same system call numbers as https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master
+        // System call numbers from
+        // https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master
         const EXIT: i32 = 1;
         const READ: i32 = 3;
         const WRITE: i32 = 4;
@@ -256,7 +257,10 @@ impl Frame {
 
                 let n = match result {
                     Ok(n) => n as i32,
-                    Err(_) => -1,
+                    Err(e) => {
+                        eprintln!("read error: {e}");
+                        -1
+                    }
                 };
 
                 self.opstack.push(n);
@@ -286,7 +290,10 @@ impl Frame {
 
                 let n = match result {
                     Ok(n) => n as i32,
-                    Err(_) => -1,
+                    Err(e) => {
+                        eprintln!("write error: {e}");
+                        -1
+                    }
                 };
 
                 self.opstack.push(n);

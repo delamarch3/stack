@@ -2,7 +2,7 @@ use std::{
     fs::File,
     io::Read,
     iter::Peekable,
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::{Chars, Lines},
     sync::{Arc, Mutex},
 };
@@ -15,7 +15,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug)]
 pub struct AssertionError {
-    filename: &'static str,
+    file: String,
     testname: String,
     message: String,
 }
@@ -25,21 +25,21 @@ impl std::fmt::Display for AssertionError {
         write!(
             f,
             "{}:{}: assertion error: {}",
-            self.filename, self.testname, self.message
+            self.file, self.testname, self.message
         )
     }
 }
 
 pub struct TestRunner {
-    filename: &'static str,
+    file: String,
     include_paths: Vec<PathBuf>,
     errors: Vec<AssertionError>,
 }
 
 impl TestRunner {
-    pub fn new(filename: &'static str, include_paths: Vec<PathBuf>) -> Self {
+    pub fn new(file: String, include_paths: Vec<PathBuf>) -> Self {
         Self {
-            filename,
+            file: file.into(),
             include_paths,
             errors: Vec::new(),
         }
@@ -117,7 +117,7 @@ impl TestRunner {
 
     fn add_error(&mut self, testcase: &TestCase, message: String) {
         self.errors.push(AssertionError {
-            filename: self.filename,
+            file: self.file.clone(),
             testname: testcase.name.clone(),
             message,
         });
@@ -155,7 +155,7 @@ pub struct TestCase {
     stdout: Option<String>,
 }
 
-pub fn parse_test_file(file: &str) -> Result<Vec<TestCase>> {
+pub fn parse_test_file(file: impl AsRef<Path>) -> Result<Vec<TestCase>> {
     let mut contents = String::new();
     File::open(file)?.read_to_string(&mut contents)?;
 

@@ -16,5 +16,3 @@ print:
     push @WRITE
     system
     ret.w
-
-; TODO: getc putc getline

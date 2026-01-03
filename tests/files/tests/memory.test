@@ -1,0 +1,54 @@
+copy-from-data
+----
+.entry main
+
+#include "include.b"
+
+.data message .string "Hello, World!\n"
+
+; char* message = "Hello, World!"
+;
+; main():
+;   char* copy = alloc(len(message))
+;   size_t i = 0;
+;   while (i < len(message)):
+;     t = message[i];
+;     copy[i] = t;
+;     i = i + 1;
+;   print(copy);
+;  return;
+main:
+    push.d sizeof message
+    alloc
+    store.d 0
+    push.d 0
+    store.d 2
+l0:
+    load.d 2
+    push.d sizeof message
+    cmp.d
+    jmp.ge l1
+    push.d message
+    load.d 2
+    get.b
+    store.b 4
+    load.d 0
+    load.d 2
+    load.b 4
+    astore.b
+    load.d 2
+    push.d 1
+    add.d
+    store.d 2
+    jmp l0
+l1:
+    load.d 0
+    push.d sizeof message
+    call print
+    ret
+----
+ok
+stack [14]
+stdout
+Hello, World!
+----

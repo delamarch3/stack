@@ -1,23 +1,32 @@
 mod testcase;
 
+use std::{fs::read_dir, io, path::PathBuf};
+
 use crate::testcase::{parse_test_file, TestRunner};
 
 #[test]
 fn it_works() -> Result<(), Box<dyn std::error::Error>> {
-    const PATH: &str = "tests/files";
-    let include_paths = vec![];
+    const TESTS: &str = "tests/files/tests";
+    let include_paths = vec![PathBuf::from("tests/files/include")];
 
     let mut errors = Vec::new();
 
-    for testfile in ["arith.test", "control_flow.test"] {
-        let testcases = parse_test_file(&format!("{PATH}/{testfile}"))?;
-        let runner = TestRunner::new(testfile, include_paths.clone());
+    let testfiles = read_dir(TESTS)?
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>()?;
+
+    for testfile in testfiles {
+        let testcases = parse_test_file(&testfile)?;
+        let runner = TestRunner::new(
+            testfile.to_str().map(String::from).unwrap(),
+            include_paths.clone(),
+        );
         errors.extend(runner.run(testcases)?);
     }
 
     if !errors.is_empty() {
         errors.iter().for_each(|e| eprintln!("{e}"));
-        panic!("tests failed");
+        panic!("{len} assertions failed", len = errors.len());
     }
 
     Ok(())
