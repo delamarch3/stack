@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem;
+use std::ops::Add;
 use std::os::fd::FromRawFd;
 use std::sync::Arc;
 
@@ -190,31 +191,25 @@ impl Frame {
 
     fn astore<T: Number>(&mut self) -> Result<()> {
         let data = self.opstack.pop::<T>();
-        let offset = self.opstack.pop::<u64>();
-        let ptr = self.opstack.pop::<u64>();
-        let src = data.to_le_bytes();
+        let offset = self.opstack.pop::<u64>() as usize;
+        let ptr = self.opstack.pop::<u64>() as *mut u8;
 
-        if !self
-            .heap
-            .write(ptr as *const u8, offset as usize, src.as_ref())
-        {
-            Err("{id}: no write")?;
-        }
+        // TODO: instead of copying, dereference the pointer?
+        let src = data.to_le_bytes();
+        let dst = unsafe { std::slice::from_raw_parts_mut(ptr.add(offset), src.as_ref().len()) };
+        dst[..].copy_from_slice(src.as_ref());
 
         Ok(())
     }
 
     fn aload<T: Number>(&mut self) -> Result<()> {
-        let offset = self.opstack.pop::<u64>();
-        let ptr = self.opstack.pop::<u64>();
-        let mut dst = T::default().to_le_bytes();
+        let offset = self.opstack.pop::<u64>() as usize;
+        let ptr = self.opstack.pop::<u64>() as *const u8;
 
-        if !self
-            .heap
-            .read(ptr as *const u8, offset as usize, dst.as_mut())
-        {
-            Err("{id}: no read")?;
-        }
+        // TODO: instead of copying, dereference the pointer?
+        let mut dst = T::default().to_le_bytes();
+        let src = unsafe { std::slice::from_raw_parts(ptr.add(offset), dst.as_ref().len()) };
+        dst.as_mut()[..].copy_from_slice(src);
 
         self.opstack.push(T::from_le_bytes(dst.as_ref()));
 
