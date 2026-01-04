@@ -62,9 +62,10 @@ copy-from-allocation
 #define msgsz 14
 
 ; main():
-;   char* a = alloc(bufsz);
+;   long* a = alloc(bufsz);
 ;   a[0] = 6278066737626506568;
 ;   a[1] = 11138535027311;
+;   char* a = (char *)a;
 ;   char* b = alloc(msgsz);
 ;   while (i < msgsz):
 ;     t = a[i];
