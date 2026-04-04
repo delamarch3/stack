@@ -5,11 +5,10 @@ main:
     push.d 8
     mul.d
     alloc     ; allocate a 512 byte buffer
-    dup.d
     store.d 0
 
-    push.d 0
     push 64
+    load.d 0
     astore
 
     load.d 0

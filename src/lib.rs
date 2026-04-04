@@ -6,7 +6,6 @@ mod frame;
 mod heap;
 pub mod interpreter;
 mod locals;
-mod memory;
 pub mod output;
 mod program;
 mod stack;

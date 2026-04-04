@@ -31,9 +31,9 @@ l0:
     load.d 2
     get.b
     store.b 4
+    load.b 4
     load.d 0
     load.d 2
-    load.b 4
     astore.b
     load.d 2
     push.d 1
@@ -77,13 +77,13 @@ main:
     push.d @bufsz
     alloc
     store.d 0
+    push.d 6278066737626506568
     load.d 0
     push.d 0
-    push.d 6278066737626506568
     astore.d
+    push.d 11138535027311
     load.d 0
     push.d 8
-    push.d 11138535027311
     astore.d
     push.d @msgsz
     alloc
@@ -99,9 +99,9 @@ l0:
     load.d 4
     aload.b
     store.b 6
+    load.b 6
     load.d 2
     load.d 4
-    load.b 6
     astore.b
     load.d 4
     push.d 1

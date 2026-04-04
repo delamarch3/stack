@@ -3,22 +3,24 @@
 array_new:
     push.d 24
     alloc
+    store.d 0
 
-    dup.d
-    push.d 0 ; ptr offset
     push.d -1 ; ptr value, not allocated until an item is pushed
+    load.d 0
+    push.d 0 ; ptr offset
     astore.d
 
-    dup.d
-    push.d 8 ; len offset
     push.d 0 ; len value
+    load.d 0
+    push.d 8 ; len offset
     astore.d
 
-    dup.d
-    push.d 16                 ; cap offset
     push.d @ARRAY_DEFAULT_CAP ; cap value
+    load.d 0
+    push.d 16                 ; cap offset
     astore.d
 
+    load.d 0
     ret.d
 
 array_realloc:
@@ -43,9 +45,9 @@ array_push_byte:
     store.d 16
 
     ; Store the allocated pointer
+    load.d 16
     load.d 0
     push.d 0
-    load.d 16
     astore.d
 
 array_push_byte_noalloc:
@@ -70,17 +72,17 @@ array_push_byte_realloc:
 array_push_byte_norealloc:
 
     ; self.ptr[len] = val
+    load.b 2  ; val
     load.d 16 ; ptr
     load.d 18 ; len
-    load.b 2  ; val
     astore.b
 
     ; self.len++
-    load.d 0  ; self
-    push.d 8
     load.d 18 ; len
     push.d 1
     add.d
+    load.d 0  ; self
+    push.d 8
     astore.d
 
     ret

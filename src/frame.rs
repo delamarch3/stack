@@ -190,9 +190,9 @@ impl Frame {
     }
 
     fn astore<T: Number>(&mut self) -> Result<()> {
-        let data = self.opstack.pop::<T>();
         let offset = self.opstack.pop::<u64>() as usize;
         let ptr = self.opstack.pop::<u64>() as *mut u8;
+        let data = self.opstack.pop::<T>();
 
         // TODO: instead of copying, dereference the pointer?
         let src = data.to_le_bytes();

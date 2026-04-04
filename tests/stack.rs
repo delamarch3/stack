@@ -5,7 +5,7 @@ use std::{fs::read_dir, io, path::PathBuf};
 use crate::testcase::{parse_test_file, TestRunner};
 
 #[test]
-fn it_works() -> Result<(), Box<dyn std::error::Error>> {
+fn stack() -> Result<(), Box<dyn std::error::Error>> {
     const TESTS: &str = "tests/files/tests";
     let include_paths = vec![PathBuf::from("tests/files/include")];
 
