@@ -118,3 +118,28 @@ ok
 stdout
 Hello, World!
 ----
+
+localptr
+----
+.entry main
+
+modify_ptr_value:
+    load 2
+    load.d 0
+    push.d 0
+    astore ; *ptr = x
+    ret
+
+main:
+    push 5
+    store 0 ; int x = 5
+
+    localptr 0
+    push 10
+    call modify_ptr_value ; modify_ptr_value(&x, 10)
+
+    load 0 ; x
+    ret
+----
+ok
+stack [10]

@@ -228,6 +228,7 @@ impl Output {
                 Bytecode::Load => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::LoadB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::LoadD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::LocalPtr => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::Push => fmt_with_operand::<i32>(f, &mut pc, &self.labels, op)?,
                 Bytecode::PushB => fmt_with_operand::<i8>(f, &mut pc, &self.labels, op)?,
                 Bytecode::PushD => fmt_with_operand::<i64>(f, &mut pc, &self.labels, op)?,

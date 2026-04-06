@@ -103,6 +103,7 @@ impl Frame {
             Bytecode::Load => self.load::<i32>(pc)?,
             Bytecode::LoadB => self.load::<i8>(pc)?,
             Bytecode::LoadD => self.load::<i64>(pc)?,
+            Bytecode::LocalPtr => self.localptr(pc)?,
             Bytecode::Mul => self.opstack.mul::<i32>(),
             Bytecode::MulD => self.opstack.mul::<i64>(),
             Bytecode::Pop => self.opstack.drop::<i32>(),
@@ -189,6 +190,14 @@ impl Frame {
     fn dataptr(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
         let offset = pc.next::<u64>()?;
         let ptr = pc.getptr(offset as usize);
+        self.opstack.push(ptr as u64);
+
+        Ok(())
+    }
+
+    fn localptr(&mut self, pc: &mut Program<Vec<u8>>) -> Result<()> {
+        let local = pc.next::<u64>()?;
+        let ptr = self.locals.ptr(local);
         self.opstack.push(ptr as u64);
 
         Ok(())

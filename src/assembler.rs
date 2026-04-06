@@ -341,6 +341,7 @@ impl Assembler {
             }
             "load.b" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LoadB)?,
             "load.d" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LoadD)?,
+            "localptr" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::LocalPtr)?,
             "mul" | "mul.w" => self.assemble_operator(Bytecode::Mul),
             "mul.d" => self.assemble_operator(Bytecode::MulD),
             "panic" => self.assemble_operator(Bytecode::Panic),

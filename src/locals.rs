@@ -33,4 +33,8 @@ impl Locals {
     pub fn copy_from_slice(&mut self, slice: &[u8]) {
         self.locals[..slice.len()].copy_from_slice(slice);
     }
+
+    pub fn ptr(&self, i: u64) -> *const u8 {
+        self.locals[i as usize * SLOT_SIZE..].as_ptr()
+    }
 }
