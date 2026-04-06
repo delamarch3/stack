@@ -135,6 +135,28 @@ impl OperandStack {
         self.push(value);
     }
 
+    pub fn cast<F: Number, T: Number>(&mut self) {
+        if F::SIZE == T::SIZE {
+            return;
+        }
+
+        let from = self.pop::<F>().to_le_bytes();
+
+        if F::SIZE > T::SIZE {
+            // truncate
+            let to = T::from_le_bytes(&from.as_ref()[..T::SIZE]);
+            self.push(to);
+        } else if F::SIZE < T::SIZE {
+            // zero out
+            // TODO: copying directly to self.stack would probably be better
+            // for performance
+            let mut buf = vec![0; T::SIZE];
+            buf[..F::SIZE].copy_from_slice(from.as_ref());
+            let to = T::from_le_bytes(&buf);
+            self.push(to);
+        }
+    }
+
     // TODO: swap and over are useful
     // swap (dd, dw, wd, ww) - swap the two top stack items
     // over (d, w) - copy second item to top
@@ -147,6 +169,17 @@ mod test {
     #[test]
     fn test_stack() {
         let mut stack = OperandStack::default();
+
+        stack.push::<i8>(1);
+        assert_eq!(stack.pop::<i32>(), 1);
+        stack.push::<i16>(1);
+        assert_eq!(stack.pop::<i32>(), 1);
+        stack.push::<i32>(1);
+        assert_eq!(stack.pop::<i32>(), 1);
+        stack.push::<i64>(1);
+        assert_eq!(stack.pop::<i32>(), 0);
+        stack.pop::<i32>();
+
         stack.push(10);
         stack.push(15);
         stack.add::<i32>();
@@ -175,6 +208,18 @@ mod test {
         stack.push::<i32>(0x40000000);
         stack.dup::<i32>();
         assert_eq!(stack.pop::<i64>(), 0x4000000040000000);
+
+        stack.push::<i32>(77);
+        stack.cast::<i32, i32>();
+        assert_eq!(stack.pop::<i32>(), 77);
+
+        stack.push::<i32>(77);
+        stack.cast::<i32, i64>();
+        assert_eq!(stack.pop::<i64>(), 77);
+
+        stack.push::<i32>(0xFF);
+        stack.cast::<i32, i8>();
+        assert_eq!(stack.pop::<i8>(), -1); // truncated to 0xF
 
         assert_eq!(stack.peek::<i32>(), None);
     }
