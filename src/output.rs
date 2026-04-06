@@ -234,7 +234,6 @@ impl Output {
                 Bytecode::Store => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::StoreB => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::StoreD => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
-
                 Bytecode::ALoad
                 | Bytecode::ALoadB
                 | Bytecode::ALoadD
@@ -245,6 +244,8 @@ impl Output {
                 | Bytecode::AddB
                 | Bytecode::AddD
                 | Bytecode::Alloc
+                | Bytecode::B2I
+                | Bytecode::B2L
                 | Bytecode::Cmp
                 | Bytecode::CmpD
                 | Bytecode::Div
@@ -255,19 +256,23 @@ impl Output {
                 | Bytecode::Get
                 | Bytecode::GetB
                 | Bytecode::GetD
+                | Bytecode::I2B
+                | Bytecode::I2L
+                | Bytecode::L2B
+                | Bytecode::L2I
                 | Bytecode::Mul
                 | Bytecode::MulD
+                | Bytecode::Panic
                 | Bytecode::Pop
                 | Bytecode::PopB
                 | Bytecode::PopD
+                | Bytecode::Ret
+                | Bytecode::RetD
+                | Bytecode::RetW
                 | Bytecode::Sub
                 | Bytecode::SubB
                 | Bytecode::SubD
-                | Bytecode::System
-                | Bytecode::Panic
-                | Bytecode::Ret
-                | Bytecode::RetW
-                | Bytecode::RetD => write!(f, "{op}")?,
+                | Bytecode::System => write!(f, "{op}")?,
             }
 
             pos = next_position(&pc);

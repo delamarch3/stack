@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem;
-use std::ops::Add;
 use std::os::fd::FromRawFd;
 use std::sync::Arc;
 
@@ -77,6 +76,8 @@ impl Frame {
             Bytecode::AddB => self.opstack.add::<i8>(),
             Bytecode::AddD => self.opstack.add::<i64>(),
             Bytecode::Alloc => self.alloc()?,
+            Bytecode::B2I => self.opstack.cast::<i8, i32>(),
+            Bytecode::B2L => self.opstack.cast::<i8, i64>(),
             Bytecode::Cmp => self.opstack.cmp::<i32>(),
             Bytecode::CmpD => self.opstack.cmp::<i64>(),
             Bytecode::DataPtr => self.dataptr(pc)?,
@@ -88,6 +89,8 @@ impl Frame {
             Bytecode::Get => self.get::<i32>(pc),
             Bytecode::GetB => self.get::<i8>(pc),
             Bytecode::GetD => self.get::<i64>(pc),
+            Bytecode::I2B => self.opstack.cast::<i32, i8>(),
+            Bytecode::I2L => self.opstack.cast::<i32, i64>(),
             Bytecode::Jmp => self.jmp(pc, &[])?,
             Bytecode::JmpEq => self.jmp(pc, &[Ordering::Equal])?,
             Bytecode::JmpGe => self.jmp(pc, &[Ordering::Greater, Ordering::Equal])?,
@@ -95,6 +98,8 @@ impl Frame {
             Bytecode::JmpLe => self.jmp(pc, &[Ordering::Less, Ordering::Equal])?,
             Bytecode::JmpLt => self.jmp(pc, &[Ordering::Less])?,
             Bytecode::JmpNe => self.jmp(pc, &[Ordering::Greater, Ordering::Less])?,
+            Bytecode::L2B => self.opstack.cast::<i64, i8>(),
+            Bytecode::L2I => self.opstack.cast::<i64, i32>(),
             Bytecode::Load => self.load::<i32>(pc)?,
             Bytecode::LoadB => self.load::<i8>(pc)?,
             Bytecode::LoadD => self.load::<i64>(pc)?,

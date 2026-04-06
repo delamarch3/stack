@@ -364,6 +364,15 @@ impl Assembler {
             "sub.b" => self.assemble_operator(Bytecode::SubB),
             "sub.d" => self.assemble_operator(Bytecode::SubD),
             "system" => self.assemble_operator(Bytecode::System),
+
+            // TODO: There's some inconsistency introduced here because I don't like
+            // the existing .w and .d extensions - they should really be .i and .l
+            "b2i" => self.assemble_operator(Bytecode::B2I),
+            "b2l" => self.assemble_operator(Bytecode::B2L),
+            "i2b" => self.assemble_operator(Bytecode::I2B),
+            "i2l" => self.assemble_operator(Bytecode::I2L),
+            "l2b" => self.assemble_operator(Bytecode::L2B),
+            "l2i" => self.assemble_operator(Bytecode::L2I),
             word => Err(format!("unknown instruction: {word}"))?,
         }
 

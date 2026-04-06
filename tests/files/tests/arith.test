@@ -87,7 +87,6 @@ stack [4]
 ##################
 # i64 operations #
 ##################
-# TODO: ability to specify size of stack item
 
 add-i64
 ----
