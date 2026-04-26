@@ -79,6 +79,7 @@ impl Frame {
             Bytecode::B2I => self.opstack.cast::<i8, i32>(),
             Bytecode::B2L => self.opstack.cast::<i8, i64>(),
             Bytecode::Cmp => self.opstack.cmp::<i32>(),
+            Bytecode::CmpB => self.opstack.cmp::<i8>(),
             Bytecode::CmpD => self.opstack.cmp::<i64>(),
             Bytecode::DataPtr => self.dataptr(pc)?,
             Bytecode::Div => self.opstack.div::<i32>(),

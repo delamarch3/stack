@@ -248,6 +248,7 @@ impl Output {
                 | Bytecode::B2I
                 | Bytecode::B2L
                 | Bytecode::Cmp
+                | Bytecode::CmpB
                 | Bytecode::CmpD
                 | Bytecode::Div
                 | Bytecode::DivD

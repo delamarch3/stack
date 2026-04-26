@@ -319,6 +319,7 @@ impl Assembler {
             "astore.d" => self.assemble_operator(Bytecode::AStoreD),
             "call" => self.assemble_operator_with_label(tokens, Bytecode::Call)?,
             "cmp" | "cmp.w" => self.assemble_operator(Bytecode::Cmp),
+            "cmp.b" => self.assemble_operator(Bytecode::CmpB),
             "cmp.d" => self.assemble_operator(Bytecode::CmpD),
             "dataptr" => self.assemble_operator_with_operand::<u64>(tokens, Bytecode::DataPtr)?,
             "div" | "div.w " => self.assemble_operator(Bytecode::Div),
