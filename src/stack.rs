@@ -61,7 +61,14 @@ impl std::fmt::Display for OperandStack {
 
 impl OperandStack {
     pub fn as_slice(&self) -> &[u8] {
-        &self.stack[..self.idx * SLOT_SIZE]
+        let size = self.idx * SLOT_SIZE;
+        &self.stack[..size]
+    }
+
+    pub fn topn_as_slice(&self, n: usize) -> &[u8] {
+        let size = self.idx * SLOT_SIZE;
+        let min = size - (n * SLOT_SIZE);
+        &self.stack[min..size]
     }
 
     pub fn clear(&mut self) {

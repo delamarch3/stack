@@ -318,6 +318,7 @@ impl Assembler {
             "astore.b" => self.assemble_operator(Bytecode::AStoreB),
             "astore.d" => self.assemble_operator(Bytecode::AStoreD),
             "call" => self.assemble_operator_with_label(tokens, Bytecode::Call)?,
+            "calln" => self.assemble_operator_with_operand::<i32>(tokens, Bytecode::CallN)?,
             "cmp" | "cmp.w" => self.assemble_operator(Bytecode::Cmp),
             "cmp.b" => self.assemble_operator(Bytecode::CmpB),
             "cmp.d" => self.assemble_operator(Bytecode::CmpD),

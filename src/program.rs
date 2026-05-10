@@ -60,6 +60,7 @@ pub enum Bytecode {
     System,
 
     Call,
+    CallN,
     Panic,
     Ret,
     RetW,
@@ -125,6 +126,7 @@ impl std::fmt::Display for Bytecode {
             Bytecode::System => "system".fmt(f),
 
             Bytecode::Call => "call".fmt(f),
+            Bytecode::CallN => "calln".fmt(f),
             Bytecode::Panic => "panic".fmt(f),
             Bytecode::Ret => "ret".fmt(f),
             Bytecode::RetW => "ret.w".fmt(f),

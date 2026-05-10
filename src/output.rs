@@ -217,6 +217,7 @@ impl Output {
 
             match op {
                 Bytecode::Call => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
+                Bytecode::CallN => fmt_with_operand::<i32>(f, &mut pc, &self.labels, op)?,
                 Bytecode::DataPtr => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::Jmp => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,
                 Bytecode::JmpEq => fmt_with_operand::<u64>(f, &mut pc, &self.labels, op)?,

@@ -122,6 +122,7 @@ impl Frame {
             Bytecode::System => self.system()?,
 
             Bytecode::Call => return self.call(pc).map(Some),
+            Bytecode::CallN => return self.calln(pc).map(Some),
             Bytecode::Panic => return Ok(Some(FrameResult::Panic(position))),
             Bytecode::Ret => return Ok(Some(FrameResult::Ret(position))),
             Bytecode::RetW => return Ok(Some(FrameResult::RetW(position))),
@@ -333,9 +334,36 @@ impl Frame {
     fn call(&mut self, pc: &mut Program<Vec<u8>>) -> Result<FrameResult> {
         let mut locals = Locals::default();
         locals.copy_from_slice(self.opstack.as_slice());
-        self.opstack.clear(); // TODO: would be nicer to avoid clearing the opstack
+        self.opstack.clear();
 
         let entry = pc.next::<u64>()?;
+        let ret = pc.position();
+        let opstack = OperandStack::default();
+        let heap = Arc::clone(&self.heap);
+        let stdout = self.stdout.as_ref().map(Arc::clone);
+        let stderr = self.stderr.as_ref().map(Arc::clone);
+
+        let frame = Frame::new(locals, opstack, heap, entry, ret, stdout, stderr);
+
+        Ok(FrameResult::Call(frame))
+    }
+
+    fn calln(&mut self, pc: &mut Program<Vec<u8>>) -> Result<FrameResult> {
+        // Similar to `call()`, except here the argument
+        // is the number of slots to pop off the stack into
+        // the new frame's locals
+
+        let nslots = pc.next::<i32>()?;
+
+        let entry = self.opstack.pop::<u64>();
+
+        let mut locals = Locals::default();
+        locals.copy_from_slice(self.opstack.topn_as_slice(nslots.try_into().unwrap()));
+
+        (0..nslots).for_each(|_| {
+            self.opstack.pop::<i32>();
+        });
+
         let ret = pc.position();
         let opstack = OperandStack::default();
         let heap = Arc::clone(&self.heap);

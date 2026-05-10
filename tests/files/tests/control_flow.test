@@ -17,6 +17,27 @@ add:
 ok
 stack [3]
 
+calln
+----
+.entry main
+
+main:
+    push 1
+    push 2
+    push 2
+    push.d add
+    calln 2
+    ret
+
+add:
+    load 0
+    load 1
+    add
+    ret.w
+----
+ok
+stack [1, 4]
+
 recursive-call
 ----
 .entry main
