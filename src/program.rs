@@ -141,8 +141,8 @@ pub struct Program<T: AsRef<[u8]>> {
 }
 
 impl<T: AsRef<[u8]>> Program<T> {
-    pub fn new(src: T) -> Self {
-        let counter = Cursor::new(src);
+    pub fn new(src: impl Into<T>) -> Self {
+        let counter = Cursor::new(src.into());
         Self { counter }
     }
 

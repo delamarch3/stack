@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write;
 
 use crate::frame::Frame;
-use crate::interpreter::Interpreter;
+use crate::interpreter::{Interpreter, InterpreterOptions};
 use crate::output::Output;
 use crate::stack::OperandStack;
 use crate::{Number, Result};
@@ -27,9 +27,9 @@ pub struct Debugger {
 
 impl Debugger {
     pub fn new(output: Output) -> Result<Self> {
-        // Use the system stdout and stderr
-        let (stdout, stderr) = (None, None);
-        let interpreter = Interpreter::new(&output, stdout, stderr)?;
+        // TODO: collect args from sdb
+        let options = InterpreterOptions::default();
+        let interpreter = Interpreter::new(&output, options)?;
         let state = State::default();
         let breakpoints = HashSet::new();
 

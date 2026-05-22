@@ -16,6 +16,30 @@ pub enum ReturnFrom {
     Other,
 }
 
+#[derive(Default)]
+pub struct InterpreterOptions {
+    argv: Option<Locals>,
+    stdout: Option<SharedWriter>,
+    stderr: Option<SharedWriter>,
+}
+
+impl InterpreterOptions {
+    pub fn with_argv(mut self, argv: Locals) -> Self {
+        self.argv.replace(argv);
+        self
+    }
+
+    pub fn with_stdout(mut self, stdout: SharedWriter) -> Self {
+        self.stdout.replace(stdout);
+        self
+    }
+
+    pub fn with_stderr(mut self, stderr: SharedWriter) -> Self {
+        self.stderr.replace(stderr);
+        self
+    }
+}
+
 pub struct Interpreter {
     entry: u64,
     pc: Program<Vec<u8>>,
@@ -26,12 +50,8 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    pub fn new(
-        output: &Output,
-        stdout: Option<SharedWriter>,
-        stderr: Option<SharedWriter>,
-    ) -> Result<Self> {
-        let mut pc = Program::new(output.into());
+    pub fn new(output: &Output, options: InterpreterOptions) -> Result<Self> {
+        let mut pc = Program::new(output);
 
         let entry = pc.next::<u64>()?;
         pc.set_position(entry);
@@ -39,13 +59,13 @@ impl Interpreter {
         let heap = Arc::<Heap>::default();
 
         let main = Frame::new(
-            Locals::default(),
+            options.argv.unwrap_or_default(),
             OperandStack::default(),
             Arc::clone(&heap),
             entry,
             MAIN_RETURN,
-            stdout.as_ref().map(Arc::clone),
-            stderr.as_ref().map(Arc::clone),
+            options.stdout.as_ref().map(Arc::clone),
+            options.stderr.as_ref().map(Arc::clone),
         );
         let frames = vec![main];
 
@@ -54,8 +74,8 @@ impl Interpreter {
             pc,
             frames,
             heap,
-            stdout,
-            stderr,
+            stdout: options.stdout,
+            stderr: options.stderr,
         })
     }
 
@@ -149,7 +169,9 @@ impl Interpreter {
             | FrameResult::RetD(position)
                 if main =>
             {
-                // Make it appear as if the pc is still pointing to the return instruction
+                // Make it appear as if the pc is still
+                // pointing to the return instruction for
+                // the debugger.
                 self.pc.set_position(position);
                 self.frames.push(current);
                 Some(ReturnFrom::Main)

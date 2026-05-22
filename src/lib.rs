@@ -5,7 +5,7 @@ pub mod debugger;
 mod frame;
 mod heap;
 pub mod interpreter;
-mod locals;
+pub mod locals;
 pub mod output;
 mod program;
 mod stack;

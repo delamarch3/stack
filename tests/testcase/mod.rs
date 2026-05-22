@@ -7,7 +7,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use stack::{assembler::Assembler, interpreter::Interpreter, SharedWriter};
+use stack::{
+    assembler::Assembler,
+    interpreter::{Interpreter, InterpreterOptions},
+    SharedWriter,
+};
 
 const SEPARATOR: &str = "----";
 
@@ -66,10 +70,9 @@ impl TestRunner {
         };
 
         let stdout = Arc::new(Mutex::new(Vec::new()));
-        let stderr = None;
+        let options = InterpreterOptions::default().with_stdout(stdout.clone());
         // TODO: this could panic, which we should interpret as an error (or new panic status?)
-        let mut interpreter =
-            Interpreter::new(&output, Some(Arc::clone(&stdout) as SharedWriter), stderr)?;
+        let mut interpreter = Interpreter::new(&output, options)?;
 
         let status = if interpreter.run().is_ok() {
             Status::Ok
