@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     match args.next().as_ref().map(String::as_str) {
         Some("--") => argv.extend(args.into_iter().map(|mut arg| {
             arg.push('\0');
-            arg.leak().as_ptr()
+            Box::leak(arg.into_boxed_str()).as_ptr()
         })),
         Some(arg) => {
             eprintln!("unknown argument: {}", arg);
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
     let file = File::open(path)?;
     let output = Output::deserialise(file)?;
 
-    let options = InterpreterOptions::default().with_argv(setup_argv_locals(argv));
+    let options = InterpreterOptions::default().with_argv(create_argv_locals(argv));
 
     let mut interpreter = Interpreter::new(&output, options)?;
     if let Err(err) = interpreter.run() {
@@ -45,16 +45,11 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn setup_argv_locals(args: Vec<*const u8>) -> Locals {
+fn create_argv_locals(args: Vec<*const u8>) -> Locals {
+    let args = Box::leak(args.into_boxed_slice());
+
     let mut locals = Locals::default();
-
     locals.write(0, args.len() as i32);
-
-    let mut skip = 1;
-    args.into_iter().enumerate().for_each(|(i, arg)| {
-        locals.write::<u64>((i + skip) as u64, arg as u64);
-        skip = 2;
-    });
-
+    locals.write(1, args.as_ptr() as u64);
     locals
 }

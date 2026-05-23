@@ -10,7 +10,6 @@ use std::{
 use stack::{
     assembler::Assembler,
     interpreter::{Interpreter, InterpreterOptions},
-    SharedWriter,
 };
 
 const SEPARATOR: &str = "----";
