@@ -2,7 +2,8 @@ use std::cmp::Ordering;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem;
-use std::os::fd::FromRawFd;
+use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::unix::fs::OpenOptionsExt;
 use std::sync::Arc;
 
 use crate::heap::Heap;
@@ -309,7 +310,42 @@ impl Frame {
 
                 self.opstack.push(n);
             }
-            OPEN => todo!(),
+            OPEN => {
+                let mode = self.opstack.pop::<u32>();
+                let flags = self.opstack.pop::<i32>();
+
+                let path_size = self.opstack.pop::<u64>() as usize;
+                let path_ptr = self.opstack.pop::<u64>() as *const u8;
+                let path_bytes = unsafe { std::slice::from_raw_parts(path_ptr, path_size) };
+                let path = std::str::from_utf8(path_bytes)?;
+
+                // custom_flags() masks out O_ACCMODE (O_RDONLY | O_WRONLY | O_RDRW)
+                // so we need to pass these into options() ourselves
+                let access_mode = flags & 3;
+                let read = access_mode == 0;
+                let write = (access_mode & 1) == 1;
+                let read_write = (access_mode & 2) == 2;
+
+                let fd = match File::options()
+                    .read(read || read_write)
+                    .write(write || read_write)
+                    .custom_flags(flags)
+                    .mode(mode)
+                    .open(path)
+                {
+                    Ok(file) => {
+                        let fd = file.as_raw_fd();
+                        mem::forget(file); // Avoid closing the file descriptor
+                        fd
+                    }
+                    Err(e) => {
+                        eprintln!("open error: {e}");
+                        -1
+                    }
+                };
+
+                self.opstack.push::<i32>(fd);
+            }
             CLOSE => {
                 let fd = self.opstack.pop::<i32>();
 
